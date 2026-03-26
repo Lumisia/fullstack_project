@@ -19,27 +19,6 @@
 </tr>
 <tr>
 <td align="center" width="25%">
-<a href="https://github.com/Joohyeng">
-<img src="https://github.com/Joohyeng.png" width="100"/>
-
-김주형
-</a>
-</td>
-<td align="center" width="25%">
-<a href="https://github.com/Yoonjoon13">
-<img src="https://github.com/Yoonjoon13.png" width="100"/>
-
-범윤준
-</a>
-</td>
-<td align="center" width="25%">
-<a href="https://github.com/sunyeoplee0">
-<img src="https://github.com/sunyeoplee0.png" width="100"/>
-
-이선엽
-</a>
-</td>
-<td align="center" width="25%">
 <a href="https://github.com/Lumisia">
 <img src="https://github.com/Lumisia.png" width="100"/>
 
