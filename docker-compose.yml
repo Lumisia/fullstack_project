@@ -1,6 +1,5 @@
-version: '3.8'
-
 services:
+  # 1. Redis 서버
   redis:
     image: redis:latest
     container_name: waffle-redis
@@ -9,8 +8,11 @@ services:
     networks:
       - waffle-net
     restart: always
+
+  # 2. MariaDB 서버
   db:
     image: mariadb:latest
+    container_name: waffle-db
     restart: always
     environment:
       - MARIADB_DATABASE=web
@@ -21,78 +23,132 @@ services:
       - ./db:/var/lib/mysql
     networks:
       - waffle-net
-  app:
-    build: .
+
+  # 3. MinIO 서버
+  minio:
+    image: minio/minio
+    container_name: waffle-minio
     ports:
-      - "443:443"
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=${MINIO_NAME}
+      - MINIO_ROOT_PASSWORD=${MINIO_SECRET}
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - waffle-net
+    restart: always
+
+  # 4. 백엔드 + 프론트엔드 서버 (WaffleBear Main App)
+  backend-app:
+    build:
+      context: .
+      dockerfile: backend.dockerfile
+    image: lumisia/waffle-app:v1
+    ports:
       - "8080:8080"
     environment:
-      # --- Database & Redis ---
-      - SPRING_DATASOURCE_DRIVER_CLASS_NAME=${DB_SERVER}
-      - SPRING_DATASOURCE_URL=${DB_URL}
-      - SPRING_DATASOURCE_USERNAME=${DB_ID}
-      - SPRING_DATASOURCE_PASSWORD=${DB_PASS}
-      - SPRING_DATA_REDIS_HOST=${REDIS_HOST}
-      - SPRING_DATA_REDIS_PORT=${REDIS_PORT}
+      # [데이터베이스 설정]
+      - DB_SERVER=${DB_SERVER}
+      - DB_URL=jdbc:mariadb://db:3306/web
+      - DB_ID=${DB_ID}
+      - DB_PASS=${DB_PASS}
 
-      # --- Security & JWT ---
+      # [레디스 설정]
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+
+      # [보안 및 인증]
       - JWT_KEY=${JWT_KEY}
       - JWT_EXPIRE=${JWT_EXPIRE}
-      - SERVER_SSL_KEY_STORE=${KEYSTORE}
-      - SERVER_SSL_KEY_STORE_TYPE=${KEYSTORETYPE}
-      - SERVER_SSL_KEY_STORE_PASSWORD=${KEYSTOREPASS}
+      - PORTONE_SECRET=${PORTONE_SECRET}
 
-      # --- OAuth2 (Social Login) ---
-      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_NAVER_CLIENT_ID=${NAVER_CLIENT_ID}
-      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_NAVER_CLIENT_SECRET=${NAVER_CLIENT_SECRET}
-      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_KAKAO_CLIENT_ID=${CLIENT_ID}
-      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_KAKAO_CLIENT_SECRET=${CLIENT_SECRET}
-
-      # --- Mail Settings ---
-      - SPRING_MAIL_PORT=${MAIL_PORT}
-      - SPRING_MAIL_USERNAME=${MAIL_ID}
-      - SPRING_MAIL_PASSWORD=${MAIL_PASS}
-
-      # --- MinIO & S3 Storage ---
-      - MINIO_PROVIDER=${STORAGE_PROVIDER}
-      - MINIO_ENDPOINT=${MINIO_API}
-      - MINIO_ACCESS_KEY=${MINIO_NAME}
-      - MINIO_SECRET_KEY=${MINIO_SECRET}
-      - MINIO_BUCKET_CLOUD=${MINIO_CLOUD_BUCKET}
-      - MINIO_BUCKET_WORK=${MINIO_WORKSPACE_BUCKET}
-      - MINIO_REGION=${MINIO_REGION}
-
-      - MINIO_S3_ENDPOINT=${S3AMAZON_API}
-      - MINIO_S3_ACCESS_KEY=${S3AMAZON_NAME}
-      - MINIO_S3_SECRET_KEY=${S3AMAZON_SECRET}
-      - MINIO_S3_BUCKET_CLOUD=${S3AMAZON_CLOUD_BUCKET}
-      - MINIO_S3_BUCKET_WORK=${S3AMAZON_WORKSPACE_BUCKET}
-      - MINIO_S3_REGION=${S3AMAZON_REGION}
-
-      # --- Admin & App Info ---
+      # [관리자 설정]
       - ADMIN_EMAIL=${ADMIN_EMAIL}
       - ADMIN_NAME=${ADMIN_NAME}
       - ADMIN_ROLE=${ADMIN_ROLE}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+
+      # [애플리케이션 URL]
       - APP_FRONTEND_URL=${APP_FRONTEND_URL}
       - APP_BACKEND_URL=${APP_BACKEND_URL}
-      - APP_SECURE_COOKIE=false
-      - PORTONE_PORTONE_SECRET=${PORTONE_SECRET}
+
+      # [OAuth2 설정]
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - NAVER_CLIENT_ID=${NAVER_CLIENT_ID}
+      - NAVER_CLIENT_SECRET=${NAVER_CLIENT_SECRET}
+      - CLIENT_ID=${CLIENT_ID}
+      - CLIENT_SECRET=${CLIENT_SECRET}
+
+      # [메일 서버]
+      - MAIL_PORT=${MAIL_PORT}
+      - MAIL_ID=${MAIL_ID}
+      - MAIL_PASS=${MAIL_PASS}
+
+      # [MinIO 및 S3 저장소]
+      - STORAGE_PROVIDER=${STORAGE_PROVIDER}
+      - MINIO_API=http://minio:9000
+      - MINIO_NAME=${MINIO_NAME}
+      - MINIO_SECRET=${MINIO_SECRET}
+      - MINIO_CLOUD_BUCKET=${MINIO_CLOUD_BUCKET}
+      - MINIO_WORKSPACE_BUCKET=${MINIO_WORKSPACE_BUCKET}
+      - MINIO_REGION=${MINIO_REGION}
+      - S3AMAZON_API=${S3AMAZON_API}
+      - S3AMAZON_NAME=${S3AMAZON_NAME}
+      - S3AMAZON_SECRET=${S3AMAZON_SECRET}
+      - S3AMAZON_CLOUD_BUCKET=${S3AMAZON_CLOUD_BUCKET}
+      - S3AMAZON_WORKSPACE_BUCKET=${S3AMAZON_WORKSPACE_BUCKET}
+      - S3AMAZON_REGION=${S3AMAZON_REGION}
+
     depends_on:
       - redis
       - db
+      - minio
     networks:
       - waffle-net
+
+  # 5. 독립 WebSocket 서버 (협업 편집 전용)
   websocket-server:
-    image: node:lts-alpine
-    command: sh -c "npm install -g y-websocket && npx y-websocket"  # 수정
+    build:
+      context: .
+      dockerfile: websocket.dockerfile
+    image: lumisia/websocket-server:v1
     environment:
       - PORT=1234
       - HOST=0.0.0.0
     ports:
       - "1234:1234"
+    networks:
+      - waffle-net
+    restart: always
+    deploy:
+      replicas: 1  # 서버 중복 실행 및 포트 충돌 방지를 위해 1로 설정함
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+  # 6. 프론트엔드 (Nginx 관문)
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend.dockerfile
+    image: lumisia/waffle-frontend:v1  # 이 줄을 추가해서 이름을 강제하세요.
+    container_name: waffle-frontend
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - backend-app
+      - websocket-server
+    networks:
+      - waffle-net
+
 networks:
   waffle-net:
     driver: bridge
+
+volumes:
+  minio_data:

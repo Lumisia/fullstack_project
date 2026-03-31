@@ -43,3 +43,9 @@ jobs:
           script: |
             echo "Connected to server!"
             echo test > /tmp/test
+            docker pull lumisia/backend:latest
+            
+            docker stop backend || true
+            docker rm backend || true
+            
+            docker run -d -p 8080:8080 --name backend lumisia/latest
