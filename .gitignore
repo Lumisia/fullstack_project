@@ -40,4 +40,4 @@ out/
 
 keystore.p12
 deploy-backend.bat
-./frontend/k8s/backend-configmap.yaml
+frontend/k8s/backend-configmap.yaml
