@@ -33,7 +33,6 @@ out/
 /dist/
 /nbdist/
 /.nb-gradle/
-./frontend/k8s/backend-configmap.yaml
 
 ### VS Code ###
 .vscode/
@@ -41,3 +40,4 @@ out/
 
 keystore.p12
 deploy-backend.bat
+./frontend/k8s/backend-configmap.yaml
