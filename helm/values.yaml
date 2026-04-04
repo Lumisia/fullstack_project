@@ -18,14 +18,11 @@ backend:
     ADMIN_NAME: '{{ env "ADMIN_NAME" | default "Administrator" }}'
     ADMIN_ROLE: '{{ env "ADMIN_ROLE" | default "ROLE_ADMIN" }}'
     ADMIN_PASSWORD: '{{ env "ADMIN_PASSWORD" | default "" }}'
-    APP_FRONTEND_URL: '{{ env "APP_FRONTEND_URL" | default (printf "https://%s" .Values.ingress.hosts.frontend) }}'
-    APP_BACKEND_URL: '{{ env "APP_BACKEND_URL" | default (printf "https://%s/api" .Values.ingress.hosts.backend) }}'
+    APP_FRONTEND_URL: '{{ env "APP_FRONTEND_URL" | default "https://www.fileinnoutcloud.kro.kr" }}'
+    APP_BACKEND_URL: '{{ env "APP_BACKEND_URL" | default "https://api.fileinnoutcloud.kro.kr/api" }}'
     APP_SECURE_COOKIE: '{{ env "APP_SECURE_COOKIE" | default "true" }}'
-    REDIS_HOST: '{{ include "wafflebear.fullname" . }}-redis-0.{{ include "wafflebear.fullname" . }}-redis'
+    REDIS_HOST: '{{ include "wafflebear.fullname" . }}-redis'
     REDIS_PORT: '{{ .Values.redis.service.port }}'
-    REDIS_SENTINEL_MASTER: '{{ include "wafflebear.fullname" . }}-redis-master'
-    REDIS_SENTINEL_NODES: '{{ include "wafflebear.fullname" . }}-redis-sentinel:{{ .Values.redis.sentinel.port }}'
-    REDIS_PASSWORD: '{{ env "REDIS_PASSWORD" | default "" }}'
     SPRING_DATASOURCE_HIKARI_INITIALIZATION_FAIL_TIMEOUT: '-1'
     GOOGLE_CLIENT_ID: '{{ env "GOOGLE_CLIENT_ID" | default "" }}'
     GOOGLE_CLIENT_SECRET: '{{ env "GOOGLE_CLIENT_SECRET" | default "" }}'
@@ -38,18 +35,18 @@ backend:
     MAIL_PASS: '{{ env "MAIL_PASS" | default "" }}'
     DB_SERVER: '{{ env "DB_SERVER" | default "org.mariadb.jdbc.Driver" }}'
     DB_URL: '{{ env "DB_URL" | default "jdbc:mariadb://mariadb:3306/web" }}'
-    DB_ID: '{{ env "DB_ID" | default "web" }}'
+    DB_ID: '{{ env "DB_ID" | default "your_id" }}'
     DB_PASS: '{{ env "DB_PASS" | default "" }}'
     STORAGE_PROVIDER: '{{ env "STORAGE_PROVIDER" | default "minio" }}'
-    MINIO_API: '{{ env "MINIO_API" | default "https://api.innoutfiles.kro.kr/" }}'
+    MINIO_API: '{{ env "MINIO_API"}}'
     MINIO_NAME: '{{ env "MINIO_NAME" | default "fileinnout_backend" }}'
-    MINIO_SECRET: '{{ env "MINIO_SECRET" | default "" }}'
+    MINIO_SECRET: '{{ env "MINIO_SECRET"}}'
     MINIO_CLOUD_BUCKET: '{{ env "MINIO_CLOUD_BUCKET" | default "innoutfilebucket" }}'
-    MINIO_WORKSPACE_BUCKET: '{{ env "MINIO_WORKSPACE_BUCKET" | default "innoutfileworkspacebucket" }}'
+    MINIO_WORKSPACE_BUCKET: '{{ env "MINIO_WORKSPACE_BUCKET" | default "yourworkspacebucket" }}'
     MINIO_REGION: '{{ env "MINIO_REGION" | default "ap-northeast-2" }}'
     S3AMAZON_API: '{{ env "S3AMAZON_API" | default "https://s3.ap-northeast-2.amazonaws.com" }}'
-    S3AMAZON_NAME: '{{ env "S3AMAZON_NAME" | default "AWS_ACCESS_KEY_ID" }}'
-    S3AMAZON_SECRET: '{{ env "S3AMAZON_SECRET" | default "" }}'
+    S3AMAZON_NAME: '{{ env "S3AMAZON_NAME"}}'
+    S3AMAZON_SECRET: '{{ env "S3AMAZON_SECRET"}}'
     S3AMAZON_CLOUD_BUCKET: '{{ env "S3AMAZON_CLOUD_BUCKET" | default "your-bucket-name" }}'
     S3AMAZON_WORKSPACE_BUCKET: '{{ env "S3AMAZON_WORKSPACE_BUCKET" | default "your-workspace-bucket-name" }}'
     S3AMAZON_REGION: '{{ env "S3AMAZON_REGION" | default "ap-northeast-2" }}'
@@ -60,10 +57,6 @@ backend:
     limits:
       cpu: "2500m"
       memory: "3Gi"
-  rollout:
-    blueGreen:
-      autoPromotionEnabled: true
-      scaleDownDelaySeconds: 300
 
 mariadb:
   image:
@@ -97,16 +90,6 @@ frontend:
     limits:
       cpu: "300m"
       memory: "256Mi"
-  rollout:
-    canary:
-      steps:
-        - setWeight: 20
-        - pause:
-            duration: 60s
-        - setWeight: 50
-        - pause:
-            duration: 120s
-        - setWeight: 100
 
 websocket:
   replicaCount: 2
@@ -119,13 +102,8 @@ websocket:
   env:
     PORT: '{{ .Values.websocket.service.port }}'
     HOST: '0.0.0.0'
-    REDIS_HOST: '{{ include "wafflebear.fullname" . }}-redis-0.{{ include "wafflebear.fullname" . }}-redis'
+    REDIS_HOST: '{{ include "wafflebear.fullname" . }}-redis'
     REDIS_PORT: '{{ .Values.redis.service.port }}'
-    REDIS_SENTINEL_MASTER: '{{ include "wafflebear.fullname" . }}-redis-master'
-    REDIS_SENTINEL_NODES: '{{ include "wafflebear.fullname" . }}-redis-sentinel:{{ .Values.redis.sentinel.port }}'
-    REDIS_PASSWORD: '{{ env "REDIS_PASSWORD" | default "" }}'
-    BACKEND_HOST: '{{ include "wafflebear.fullname" . }}-backend'
-    BACKEND_PORT: '{{ .Values.backend.service.port }}'
     YJS_REDIS_PREFIX: '{{ env "YJS_REDIS_PREFIX" | default "wafflebear:yjs" }}'
     YJS_SNAPSHOT_SAVE_DELAY_MS: '{{ env "YJS_SNAPSHOT_SAVE_DELAY_MS" | default "150" }}'
   resources:
@@ -135,10 +113,6 @@ websocket:
     limits:
       cpu: "200m"
       memory: "256Mi"
-  rollout:
-    blueGreen:
-      autoPromotionEnabled: true
-      scaleDownDelaySeconds: 600
 
 redis:
   replicaCount: 1
@@ -148,36 +122,16 @@ redis:
     pullPolicy: IfNotPresent
   service:
     port: 6379
-  persistence:
-    enabled: true
-    storageClassName: longhorn
-    size: 10Gi
-  autoscaling:
-    enabled: true
-    minReplicas: 1
-    maxReplicas: 5
-    targetCPUUtilizationPercentage: 70
-    targetMemoryUtilizationPercentage: 75
-  sentinel:
-    replicas: 3
-    port: 26379
-    quorum: 2
-    downAfterMilliseconds: 5000
-    failoverTimeout: 60000
-    parallelSyncs: 1
-    resources:
-      requests:
-        cpu: "50m"
-        memory: "64Mi"
-      limits:
-        cpu: "200m"
-        memory: "128Mi"
-  config:
-    maxmemory: 768mb
-    maxmemoryPolicy: allkeys-lru
-    appendonly: "yes"
-    saveSeconds: "60"
-    saveChanges: "1"
+  args:
+    - --appendonly
+    - "yes"
+    - --save
+    - "60"
+    - "1"
+    - --maxmemory
+    - "768mb"
+    - --maxmemory-policy
+    - allkeys-lru
   resources:
     requests:
       cpu: "300m"
@@ -200,6 +154,10 @@ ingress:
     # Tip: cert-manager 관련 어노테이션은 이제 넣지 않아도 됩니다.
 
     # CORS 및 헤더 설정
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      add_header 'Access-Control-Expose-Headers' 'Authorization' always;
+      if ($request_uri ~* "^/api$") { return 301 $scheme://$http_host/api/; }
+      if ($request_uri ~* "^/wss$") { return 301 $scheme://$http_host/wss/; }
   
   hosts:
     frontend: "www.fileinnoutcloud.kro.kr"
