@@ -1,7 +1,7 @@
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: {{ include "wafflebear.fullname" . }}-redis
+  name: {{ .Values.redis.service.name }}
   labels:
     app.kubernetes.io/name: redis
     app.kubernetes.io/part-of: wafflebear

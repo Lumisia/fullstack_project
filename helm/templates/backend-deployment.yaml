@@ -1,5 +1,5 @@
-apiVersion: argoproj.io/v1alpha1
-kind: Rollout
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: {{ include "wafflebear.fullname" . }}-backend
   labels:
@@ -15,13 +15,14 @@ spec:
       app.kubernetes.io/name: backend
       app.kubernetes.io/part-of: wafflebear
   strategy:
-    blueGreen:
-      activeService: {{ include "wafflebear.fullname" . }}-backend
-      previewService: {{ include "wafflebear.fullname" . }}-backend-preview
-      autoPromotionEnabled: {{ .Values.backend.rollout.blueGreen.autoPromotionEnabled }}
-      scaleDownDelaySeconds: {{ .Values.backend.rollout.blueGreen.scaleDownDelaySeconds }}
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   template:
     metadata:
+      annotations:
+        checksum/backend-env: {{ include (print $.Template.BasePath "/backend-configmap.yaml") . | sha256sum }}
       labels:
         app.kubernetes.io/name: backend
         app.kubernetes.io/part-of: wafflebear

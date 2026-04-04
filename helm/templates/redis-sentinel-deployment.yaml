@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "wafflebear.fullname" . }}-redis-sentinel
+  name: {{ .Values.redis.sentinel.name }}
   labels:
     app.kubernetes.io/name: redis-sentinel
     app.kubernetes.io/part-of: wafflebear
@@ -33,9 +33,9 @@ spec:
             - /etc/redis/scripts/sentinel-entrypoint.sh
           env:
             - name: REDIS_SENTINEL_MASTER
-              value: "{{ include "wafflebear.fullname" . }}-redis-master"
+              value: "{{ .Values.redis.sentinel.masterName }}"
             - name: REDIS_SENTINEL_MASTER_HOST
-              value: "{{ include "wafflebear.fullname" . }}-redis-0.{{ include "wafflebear.fullname" . }}-redis"
+              value: "{{ .Values.redis.sentinel.masterHost }}"
             - name: REDIS_PORT
               value: "{{ .Values.redis.service.port }}"
             - name: REDIS_SENTINEL_PORT

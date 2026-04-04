@@ -10,46 +10,49 @@ backend:
   service:
     port: 8080
   env:
-    TZ: '{{ env "TZ" | default "Asia/Seoul" }}'
-    PORTONE_SECRET: '{{ env "PORTONE_SECRET" | default "" }}'
-    JWT_KEY: '{{ env "JWT_KEY" | default "" }}'
-    JWT_EXPIRE: '{{ env "JWT_EXPIRE" | default "86400000" }}'
-    ADMIN_EMAIL: '{{ env "ADMIN_EMAIL" | default "administrator@example.com" }}'
-    ADMIN_NAME: '{{ env "ADMIN_NAME" | default "Administrator" }}'
-    ADMIN_ROLE: '{{ env "ADMIN_ROLE" | default "ROLE_ADMIN" }}'
-    ADMIN_PASSWORD: '{{ env "ADMIN_PASSWORD" | default "" }}'
-    APP_FRONTEND_URL: '{{ env "APP_FRONTEND_URL" | default "https://www.fileinnoutcloud.kro.kr" }}'
-    APP_BACKEND_URL: '{{ env "APP_BACKEND_URL" | default "https://api.fileinnoutcloud.kro.kr/api" }}'
-    APP_SECURE_COOKIE: '{{ env "APP_SECURE_COOKIE" | default "true" }}'
-    REDIS_HOST: '{{ include "wafflebear.fullname" . }}-redis'
+    # Public defaults only. Sensitive values are overridden from values.private.yaml.
+    TZ: 'Asia/Seoul'
+    PORTONE_SECRET: ''
+    JWT_KEY: ''
+    JWT_EXPIRE: '86400000'
+    ADMIN_EMAIL: ''
+    ADMIN_NAME: ''
+    ADMIN_ROLE: 'ROLE_ADMIN'
+    ADMIN_PASSWORD: ''
+    APP_FRONTEND_URL: 'https://www.fileinnoutcloud.kro.kr'
+    APP_BACKEND_URL: 'https://api.fileinnoutcloud.kro.kr/api'
+    APP_SECURE_COOKIE: 'true'
+    REDIS_HOST: 'redis'
     REDIS_PORT: '{{ .Values.redis.service.port }}'
+    REDIS_SENTINEL_MASTER: 'redis-master'
+    REDIS_SENTINEL_NODES: 'redis-sentinel:{{ .Values.redis.sentinel.port }}'
     SPRING_DATASOURCE_HIKARI_INITIALIZATION_FAIL_TIMEOUT: '-1'
-    GOOGLE_CLIENT_ID: '{{ env "GOOGLE_CLIENT_ID" | default "" }}'
-    GOOGLE_CLIENT_SECRET: '{{ env "GOOGLE_CLIENT_SECRET" | default "" }}'
-    NAVER_CLIENT_ID: '{{ env "NAVER_CLIENT_ID" | default "" }}'
-    NAVER_CLIENT_SECRET: '{{ env "NAVER_CLIENT_SECRET" | default "" }}'
-    CLIENT_ID: '{{ env "CLIENT_ID" | default "" }}'
-    CLIENT_SECRET: '{{ env "CLIENT_SECRET" | default "" }}'
-    MAIL_PORT: '{{ env "MAIL_PORT" | default "587" }}'
-    MAIL_ID: '{{ env "MAIL_ID" | default "" }}'
-    MAIL_PASS: '{{ env "MAIL_PASS" | default "" }}'
-    DB_SERVER: '{{ env "DB_SERVER" | default "org.mariadb.jdbc.Driver" }}'
-    DB_URL: '{{ env "DB_URL" | default "jdbc:mariadb://mariadb:3306/web" }}'
-    DB_ID: '{{ env "DB_ID" | default "your_id" }}'
-    DB_PASS: '{{ env "DB_PASS" | default "" }}'
-    STORAGE_PROVIDER: '{{ env "STORAGE_PROVIDER" | default "minio" }}'
-    MINIO_API: '{{ env "MINIO_API"}}'
-    MINIO_NAME: '{{ env "MINIO_NAME" | default "fileinnout_backend" }}'
-    MINIO_SECRET: '{{ env "MINIO_SECRET"}}'
-    MINIO_CLOUD_BUCKET: '{{ env "MINIO_CLOUD_BUCKET" | default "innoutfilebucket" }}'
-    MINIO_WORKSPACE_BUCKET: '{{ env "MINIO_WORKSPACE_BUCKET" | default "yourworkspacebucket" }}'
-    MINIO_REGION: '{{ env "MINIO_REGION" | default "ap-northeast-2" }}'
-    S3AMAZON_API: '{{ env "S3AMAZON_API" | default "https://s3.ap-northeast-2.amazonaws.com" }}'
-    S3AMAZON_NAME: '{{ env "S3AMAZON_NAME"}}'
-    S3AMAZON_SECRET: '{{ env "S3AMAZON_SECRET"}}'
-    S3AMAZON_CLOUD_BUCKET: '{{ env "S3AMAZON_CLOUD_BUCKET" | default "your-bucket-name" }}'
-    S3AMAZON_WORKSPACE_BUCKET: '{{ env "S3AMAZON_WORKSPACE_BUCKET" | default "your-workspace-bucket-name" }}'
-    S3AMAZON_REGION: '{{ env "S3AMAZON_REGION" | default "ap-northeast-2" }}'
+    GOOGLE_CLIENT_ID: ''
+    GOOGLE_CLIENT_SECRET: ''
+    NAVER_CLIENT_ID: ''
+    NAVER_CLIENT_SECRET: ''
+    CLIENT_ID: ''
+    CLIENT_SECRET: ''
+    MAIL_PORT: '587'
+    MAIL_ID: ''
+    MAIL_PASS: ''
+    DB_SERVER: 'org.mariadb.jdbc.Driver'
+    DB_URL: 'jdbc:mariadb://mariadb:3306/web'
+    DB_ID: ''
+    DB_PASS: ''
+    STORAGE_PROVIDER: 'minio'
+    MINIO_API: 'https://api.innoutfiles.kro.kr/'
+    MINIO_NAME: ''
+    MINIO_SECRET: ''
+    MINIO_CLOUD_BUCKET: 'innoutfilebucket'
+    MINIO_WORKSPACE_BUCKET: 'yourworkspacebucket'
+    MINIO_REGION: 'ap-northeast-2'
+    S3AMAZON_API: 'https://s3.ap-northeast-2.amazonaws.com'
+    S3AMAZON_NAME: ''
+    S3AMAZON_SECRET: ''
+    S3AMAZON_CLOUD_BUCKET: 'your-bucket-name'
+    S3AMAZON_WORKSPACE_BUCKET: 'your-workspace-bucket-name'
+    S3AMAZON_REGION: 'ap-northeast-2'
   resources:
     requests:
       cpu: "1500m"
@@ -57,6 +60,10 @@ backend:
     limits:
       cpu: "2500m"
       memory: "3Gi"
+  rollout:
+    blueGreen:
+      autoPromotionEnabled: true
+      scaleDownDelaySeconds: 300
 
 mariadb:
   image:
@@ -90,6 +97,16 @@ frontend:
     limits:
       cpu: "300m"
       memory: "256Mi"
+  rollout:
+    canary:
+      steps:
+        - setWeight: 20
+        - pause:
+            duration: 60s
+        - setWeight: 50
+        - pause:
+            duration: 120s
+        - setWeight: 100
 
 websocket:
   replicaCount: 2
@@ -102,10 +119,14 @@ websocket:
   env:
     PORT: '{{ .Values.websocket.service.port }}'
     HOST: '0.0.0.0'
-    REDIS_HOST: '{{ include "wafflebear.fullname" . }}-redis'
+    REDIS_HOST: 'redis'
     REDIS_PORT: '{{ .Values.redis.service.port }}'
-    YJS_REDIS_PREFIX: '{{ env "YJS_REDIS_PREFIX" | default "wafflebear:yjs" }}'
-    YJS_SNAPSHOT_SAVE_DELAY_MS: '{{ env "YJS_SNAPSHOT_SAVE_DELAY_MS" | default "150" }}'
+    REDIS_SENTINEL_MASTER: 'redis-master'
+    REDIS_SENTINEL_NODES: 'redis-sentinel:{{ .Values.redis.sentinel.port }}'
+    BACKEND_HOST: '{{ include "wafflebear.fullname" . }}-backend'
+    BACKEND_PORT: '{{ .Values.backend.service.port }}'
+    YJS_REDIS_PREFIX: 'wafflebear:yjs'
+    YJS_SNAPSHOT_SAVE_DELAY_MS: '150'
   resources:
     requests:
       cpu: "100m"
@@ -125,17 +146,41 @@ redis:
     tag: 7.4-alpine
     pullPolicy: IfNotPresent
   service:
+    name: redis
     port: 6379
-  args:
-    - --appendonly
-    - "yes"
-    - --save
-    - "60"
-    - "1"
-    - --maxmemory
-    - "768mb"
-    - --maxmemory-policy
-    - allkeys-lru
+  persistence:
+    enabled: true
+    storageClassName: longhorn
+    size: 10Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 75
+  sentinel:
+    name: redis-sentinel
+    masterName: redis-master
+    masterHost: redis-0.redis
+    replicas: 3
+    port: 26379
+    quorum: 2
+    downAfterMilliseconds: 5000
+    failoverTimeout: 60000
+    parallelSyncs: 1
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+      limits:
+        cpu: "200m"
+        memory: "128Mi"
+  config:
+    maxmemory: '768mb'
+    maxmemoryPolicy: 'allkeys-lru'
+    appendonly: 'yes'
+    saveSeconds: '60'
+    saveChanges: '1'
   resources:
     requests:
       cpu: "300m"

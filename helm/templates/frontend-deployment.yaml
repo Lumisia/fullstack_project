@@ -1,5 +1,5 @@
-apiVersion: argoproj.io/v1alpha1
-kind: Rollout
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: {{ include "wafflebear.fullname" . }}-frontend
   labels:
@@ -15,18 +15,14 @@ spec:
       app.kubernetes.io/name: frontend
       app.kubernetes.io/part-of: wafflebear
   strategy:
-    canary:
+    type: RollingUpdate
+    rollingUpdate:
       maxSurge: 1
       maxUnavailable: 0
-      stableService: {{ include "wafflebear.fullname" . }}-frontend
-      canaryService: {{ include "wafflebear.fullname" . }}-frontend-canary
-      trafficRouting:
-        nginx:
-          stableIngress: {{ include "wafflebear.fullname" . }}-frontend
-      steps:
-{{ toYaml .Values.frontend.rollout.canary.steps | nindent 8 }}
   template:
     metadata:
+      annotations:
+        checksum/frontend-nginx: {{ include (print $.Template.BasePath "/frontend-configmap.yaml") . | sha256sum }}
       labels:
         app.kubernetes.io/name: frontend
         app.kubernetes.io/part-of: wafflebear

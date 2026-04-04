@@ -1,7 +1,5 @@
-{{- $websocketRollout := .Values.websocket.rollout | default dict -}}
-{{- $websocketBlueGreen := $websocketRollout.blueGreen | default dict -}}
-apiVersion: argoproj.io/v1alpha1
-kind: Rollout
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: {{ include "wafflebear.fullname" . }}-websocket
   labels:
@@ -17,13 +15,14 @@ spec:
       app.kubernetes.io/name: websocket
       app.kubernetes.io/part-of: wafflebear
   strategy:
-    blueGreen:
-      activeService: {{ include "wafflebear.fullname" . }}-websocket
-      previewService: {{ include "wafflebear.fullname" . }}-websocket-preview
-      autoPromotionEnabled: {{ default true $websocketBlueGreen.autoPromotionEnabled }}
-      scaleDownDelaySeconds: {{ default 600 $websocketBlueGreen.scaleDownDelaySeconds }}
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   template:
     metadata:
+      annotations:
+        checksum/websocket-env: {{ include (print $.Template.BasePath "/websocket-server-configmap.yaml") . | sha256sum }}
       labels:
         app.kubernetes.io/name: websocket
         app.kubernetes.io/part-of: wafflebear
