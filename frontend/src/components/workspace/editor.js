@@ -184,6 +184,38 @@ export async function initEditor(holderElement, room, initialData, idx, initialT
   let mutationObserver    = null
   let pendingYVal         = null
   let remoteRenderInFlight = false
+  let localSyncTimer       = null
+
+  const syncEditorToYjs = async () => {
+    if (suppressLocal || isRendering || !editor) {
+      return
+    }
+
+    try {
+      const saved = await editor.save()
+      if (saved.blocks.length === 0) return
+
+      const newString = JSON.stringify(saved)
+      if (yMap.get('contents') === newString) return
+
+      ydoc.transact(() => {
+        yMap.set('contents', newString)
+      })
+    } catch (error) {
+      console.error('[YJS] local editor sync failed', error)
+    }
+  }
+
+  const scheduleLocalSync = () => {
+    if (suppressLocal || isRendering) {
+      return
+    }
+
+    clearTimeout(localSyncTimer)
+    localSyncTimer = setTimeout(() => {
+      void syncEditorToYjs()
+    }, 30)
+  }
   // ─── 블록 단위 diff 적용 ──────────────────────────────────────────────────
   async function applyBlockDiff(nextBlocks) {
     await editor.isReady
@@ -253,10 +285,10 @@ export async function initEditor(holderElement, room, initialData, idx, initialT
   }
 
   async function renderFromY(yval) {
-    if (!editor || isRendering) return
+    if (!editor) return
     if (!yval || yval === '""' || yval === '') return
 
-    if (remoteRenderInFlight) {
+    if (isRendering || remoteRenderInFlight) {
       pendingYVal = yval
       return
     }
@@ -318,19 +350,9 @@ export async function initEditor(holderElement, room, initialData, idx, initialT
         .filter(b => b.type === 'image' && b.data?.file?.assetIdx)
         .forEach(b => previousImageAssets.set(b.data.file.assetIdx, true))
 
-      let syncTimer = null
       mutationObserver = new MutationObserver(() => {
         if (suppressLocal || isRendering) return
-        clearTimeout(syncTimer)
-        syncTimer = setTimeout(async () => {
-          try {
-            const saved = await editor.save()
-            if (saved.blocks.length === 0) return
-            const newString = JSON.stringify(saved)
-            if (yMap.get('contents') === newString) return
-            ydoc.transact(() => { yMap.set('contents', newString) })
-          } catch (e) {}
-        }, 30)
+        scheduleLocalSync()
       })
 
       mutationObserver.observe(holderElement, {
@@ -338,6 +360,8 @@ export async function initEditor(holderElement, room, initialData, idx, initialT
         subtree:       true,
         characterData: true,
       })
+
+      holderElement.addEventListener('input', scheduleLocalSync, true)
     },
     onChange: async () => {
       if (suppressLocal || isRendering) return
@@ -359,10 +383,7 @@ export async function initEditor(holderElement, room, initialData, idx, initialT
 
         previousImageAssets = currentImageAssets
 
-        if (saved.blocks.length === 0) return
-        const newString = JSON.stringify(saved)
-        if (yMap.get('contents') === newString) return
-        ydoc.transact(() => { yMap.set('contents', newString) })
+        scheduleLocalSync()
       } catch (err) {
         console.error('editor save failed', err)
       }
@@ -442,6 +463,8 @@ export async function initEditor(holderElement, room, initialData, idx, initialT
   function destroy() {
     if (animationFrameId) cancelAnimationFrame(animationFrameId)
     window.removeEventListener('mousemove', handleMouseMove)
+    holderElement.removeEventListener('input', scheduleLocalSync, true)
+    clearTimeout(localSyncTimer)
     mutationObserver?.disconnect()
     try { if (provider) { provider.disconnect(); provider.destroy() } } catch (e) {}
     try { if (editor && typeof editor.destroy === 'function') editor.destroy() } catch (e) {}
