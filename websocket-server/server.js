@@ -123,6 +123,15 @@ const sanitizeHeaders = (headers) =>
     Object.entries(headers || {}).filter(([name]) => !HOP_BY_HOP_HEADERS.has(name.toLowerCase())),
   )
 
+const buildUpgradeResponseHeaders = (headers, req) => {
+  const responseHeaders = sanitizeHeaders(headers)
+  // WebSocket handshakes still need Upgrade/Connection on the 101 response,
+  // even though we strip hop-by-hop headers for normal HTTP proxying.
+  responseHeaders.connection = headers?.connection || 'Upgrade'
+  responseHeaders.upgrade = headers?.upgrade || req?.headers?.upgrade || 'websocket'
+  return responseHeaders
+}
+
 const appendForwardedFor = (existingValue, remoteAddress) => {
   if (!remoteAddress) {
     return existingValue
@@ -197,7 +206,7 @@ const proxyUpgradeRequest = (req, socket, head, upstreamPath) => {
 
   proxyReq.on('upgrade', (proxyRes, proxySocket, proxyHead) => {
     const statusLine = `HTTP/1.1 ${proxyRes.statusCode || 101} ${proxyRes.statusMessage || 'Switching Protocols'}`
-    const headerLines = Object.entries(sanitizeHeaders(proxyRes.headers)).flatMap(
+    const headerLines = Object.entries(buildUpgradeResponseHeaders(proxyRes.headers, req)).flatMap(
       ([name, value]) =>
         Array.isArray(value) ? value.map((item) => `${name}: ${item}`) : `${name}: ${value}`,
     )

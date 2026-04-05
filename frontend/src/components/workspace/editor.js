@@ -23,14 +23,14 @@ import postApi from '@/api/postApi'
 import { getYjsWebsocketUrl } from '@/utils/yjsUrl'
 import loadpost from './loadpost'
 
-export async function initEditor(holderElement, room, initialData, idx, initialTitle, isCollaborative, options = {}) {
+export async function initEditor(holderElement, room, initialData, idx, initialTitle, isPrivate, options = {}) {
   if (!holderElement) throw new Error('holderElement is required')
 
   const ydoc = new Y.Doc()
   let provider = null
   let currentIdx = idx ?? null
 
-  if (!isCollaborative) {
+  if (!isPrivate) {
     provider = new WebsocketProvider(getYjsWebsocketUrl(), room, ydoc)
   }
 
@@ -183,7 +183,7 @@ export async function initEditor(holderElement, room, initialData, idx, initialT
   let previousImageAssets = new Map()
   let mutationObserver    = null
   let pendingYVal         = null
-
+  let remoteRenderInFlight = false
   // ─── 블록 단위 diff 적용 ──────────────────────────────────────────────────
   async function applyBlockDiff(nextBlocks) {
     await editor.isReady
@@ -229,6 +229,11 @@ export async function initEditor(holderElement, room, initialData, idx, initialT
       setTimeout(() => {
         suppressLocal = false
         isRendering   = false
+        if (pendingYVal) {
+          void flushPendingRender().catch((error) => {
+            console.warn('[YJS] pending remote render flush failed', error)
+          })
+        }
       }, 50)
     }
   }
@@ -251,22 +256,36 @@ export async function initEditor(holderElement, room, initialData, idx, initialT
     if (!editor || isRendering) return
     if (!yval || yval === '""' || yval === '') return
 
-    if (holderElement.contains(document.activeElement)) {
+    if (remoteRenderInFlight) {
       pendingYVal = yval
       return
     }
 
-    await applyRender(yval)
+    remoteRenderInFlight = true
+    try {
+      await applyRender(yval)
+    } catch (error) {
+      console.warn('[YJS] remote render failed', error)
+    } finally {
+      remoteRenderInFlight = false
+    }
+
+    if (pendingYVal && pendingYVal !== yval) {
+      const nextYVal = pendingYVal
+      pendingYVal = null
+      await renderFromY(nextYVal)
+    }
   }
 
-  holderElement.addEventListener('focusout', async (e) => {
-    if (holderElement.contains(e.relatedTarget)) return
-    if (pendingYVal) {
-      const val = pendingYVal
-      pendingYVal = null
-      await applyRender(val)
+  const flushPendingRender = async () => {
+    if (isRendering || remoteRenderInFlight || !pendingYVal) {
+      return
     }
-  })
+
+    const nextYVal = pendingYVal
+    pendingYVal = null
+    await renderFromY(nextYVal)
+  }
 
   // ─── 초기 데이터 파싱 ─────────────────────────────────────────────────────
   let parsedData = { blocks: [] }
@@ -411,7 +430,7 @@ export async function initEditor(holderElement, room, initialData, idx, initialT
     })
   }
 
-  if (!isCollaborative) {
+  if (!isPrivate) {
     window.addEventListener('mousemove', handleMouseMove)
   }
 
