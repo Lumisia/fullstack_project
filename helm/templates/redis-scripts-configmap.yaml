@@ -19,6 +19,10 @@ data:
     MASTER_HOST=""
     MASTER_PORT="$PORT"
 
+    canonicalize_host() {
+      printf '%s' "$1" | cut -d. -f1
+    }
+
     get_master_from_sentinel() {
       if [ -z "$MASTER_NAME" ] || [ -z "$SENTINEL_NODES" ]; then
         return 1
@@ -67,7 +71,7 @@ data:
       --maxmemory "$MAXMEMORY" \
       --maxmemory-policy "$MAXMEMORY_POLICY"
 
-    if resolve_master && [ "$MASTER_HOST" != "$SELF_HOST" ]; then
+    if resolve_master && [ "$(canonicalize_host "$MASTER_HOST")" != "$(canonicalize_host "$SELF_HOST")" ]; then
       exec "$@" --replicaof "$MASTER_HOST" "$MASTER_PORT"
     fi
 

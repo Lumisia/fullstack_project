@@ -35,7 +35,7 @@ spec:
             - name: REDIS_SENTINEL_MASTER
               value: "{{ .Values.redis.sentinel.masterName }}"
             - name: REDIS_SENTINEL_MASTER_HOST
-              value: "{{ .Values.redis.sentinel.masterHost }}"
+              value: "{{ printf "%s-0.%s.%s.svc.cluster.local" .Values.redis.service.name .Values.redis.service.name .Release.Namespace }}"
             - name: REDIS_PORT
               value: "{{ .Values.redis.service.port }}"
             - name: REDIS_SENTINEL_PORT

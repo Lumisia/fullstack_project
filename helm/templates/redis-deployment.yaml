@@ -46,9 +46,9 @@ spec:
             - name: REDIS_SENTINEL_MASTER
               value: "{{ .Values.redis.sentinel.masterName }}"
             - name: REDIS_SENTINEL_NODES
-              value: "{{ .Values.redis.sentinel.name }}:{{ .Values.redis.sentinel.port }}"
+              value: "{{ printf "%s.%s.svc.cluster.local:%d" .Values.redis.sentinel.name .Release.Namespace .Values.redis.sentinel.port }}"
             - name: REDIS_FALLBACK_MASTER
-              value: "{{ .Values.redis.sentinel.masterHost }}"
+              value: "{{ printf "%s-0.%s.%s.svc.cluster.local" .Values.redis.service.name .Values.redis.service.name .Release.Namespace }}"
           ports:
             - containerPort: {{ .Values.redis.service.port }}
               name: redis

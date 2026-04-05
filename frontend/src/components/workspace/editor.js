@@ -37,11 +37,18 @@ export async function initEditor(holderElement, room, initialData, idx, initialT
   const yMap         = ydoc.getMap('workspace_data')
   const yTitle       = ydoc.getText('title')
   const yPermissions = ydoc.getMap('permissions')
+  const LOCAL_EDIT_ORIGIN = Symbol('local-edit-origin')
+
+  const runLocalTransaction = (callback) => {
+    ydoc.transact(callback, LOCAL_EDIT_ORIGIN)
+  }
 
   if (provider) {
     provider.on('sync', (isSynced) => {
       if (isSynced && initialTitle && yTitle.toString() === '') {
-        yTitle.insert(0, initialTitle)
+        runLocalTransaction(() => {
+          yTitle.insert(0, initialTitle)
+        })
       }
     })
   }
@@ -198,7 +205,7 @@ export async function initEditor(holderElement, room, initialData, idx, initialT
       const newString = JSON.stringify(saved)
       if (yMap.get('contents') === newString) return
 
-      ydoc.transact(() => {
+      runLocalTransaction(() => {
         yMap.set('contents', newString)
       })
     } catch (error) {
@@ -214,7 +221,7 @@ export async function initEditor(holderElement, room, initialData, idx, initialT
     clearTimeout(localSyncTimer)
     localSyncTimer = setTimeout(() => {
       void syncEditorToYjs()
-    }, 30)
+    }, 100)
   }
   // ─── 블록 단위 diff 적용 ──────────────────────────────────────────────────
   async function applyBlockDiff(nextBlocks) {
@@ -342,7 +349,9 @@ export async function initEditor(holderElement, room, initialData, idx, initialT
       if (initialY) {
         await renderFromY(initialY)
       } else if (parsedData.blocks && parsedData.blocks.length > 0) {
-        yMap.set('contents', JSON.stringify(parsedData))
+        runLocalTransaction(() => {
+          yMap.set('contents', JSON.stringify(parsedData))
+        })
       }
 
       const initialSaved = await editor.save()
@@ -395,7 +404,8 @@ export async function initEditor(holderElement, room, initialData, idx, initialT
   // ─── 타이틀 바인딩 ────────────────────────────────────────────────────────
   function bindTitleRef(titleRef) {
     if (!titleRef) return
-    yTitle.observe(() => {
+    yTitle.observe((event) => {
+      if (event?.transaction?.origin === LOCAL_EDIT_ORIGIN) return
       const t = yTitle.toString()
       if (titleRef.value !== t) titleRef.value = t
     })
@@ -404,7 +414,7 @@ export async function initEditor(holderElement, room, initialData, idx, initialT
   function updateTitleFromLocal(val) {
     const current = yTitle.toString()
     if (current !== val) {
-      ydoc.transact(() => {
+      runLocalTransaction(() => {
         yTitle.delete(0, yTitle.length)
         yTitle.insert(0, val)
       })
@@ -430,7 +440,8 @@ export async function initEditor(holderElement, room, initialData, idx, initialT
   }
 
   // ─── Y.js 콘텐츠 변경 감지 ────────────────────────────────────────────────
-  yMap.observe(() => {
+  yMap.observe((event) => {
+    if (event?.transaction?.origin === LOCAL_EDIT_ORIGIN) return
     const newContents = yMap.get('contents')
     renderFromY(newContents)
   })
