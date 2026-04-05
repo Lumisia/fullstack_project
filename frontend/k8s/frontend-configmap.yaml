@@ -9,6 +9,25 @@ data:
       charset utf-8;
       underscores_in_headers on;
 
+      location ^~ /assets/ {
+        root /usr/share/nginx/html;
+        try_files $uri =404;
+      }
+
+      location ^~ /src/ {
+        return 404;
+      }
+
+      location = /favicon.ico {
+        root /usr/share/nginx/html;
+        try_files $uri =404;
+      }
+
+      location = /sw.js {
+        root /usr/share/nginx/html;
+        try_files $uri =404;
+      }
+
       location / {
         root /usr/share/nginx/html;
         index index.html index.htm;

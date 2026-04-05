@@ -1,8 +1,7 @@
-{{- if false }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "wafflebear.fullname" . }}-frontend-canary
+  name: {{ include "wafflebear.fullname" . }}-frontend-preview
 spec:
   type: ClusterIP
   selector:
@@ -13,4 +12,3 @@ spec:
       protocol: TCP
       port: {{ .Values.frontend.service.port }}
       targetPort: {{ .Values.frontend.service.port }}
-{{- end }}

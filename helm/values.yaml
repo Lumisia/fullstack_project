@@ -55,7 +55,9 @@ backend:
     S3AMAZON_REGION: 'ap-northeast-2'
   resources:
     requests:
-      cpu: "1500m"
+      # worker nodes are 4 CPU / 8 GiB each, so keep backend requests conservative
+      # to leave room for blue-green rollout overlap and Longhorn overhead.
+      cpu: "1000m"
       memory: "2Gi"
     limits:
       cpu: "2500m"
@@ -92,21 +94,15 @@ frontend:
     port: 80
   resources:
     requests:
-      cpu: "100m"
-      memory: "128Mi"
+      cpu: "50m"
+      memory: "64Mi"
     limits:
-      cpu: "300m"
+      cpu: "200m"
       memory: "256Mi"
   rollout:
-    canary:
-      steps:
-        - setWeight: 20
-        - pause:
-            duration: 60s
-        - setWeight: 50
-        - pause:
-            duration: 120s
-        - setWeight: 100
+    blueGreen:
+      autoPromotionEnabled: true
+      scaleDownDelaySeconds: 300
 
 websocket:
   replicaCount: 2
@@ -129,7 +125,7 @@ websocket:
     YJS_SNAPSHOT_SAVE_DELAY_MS: '150'
   resources:
     requests:
-      cpu: "100m"
+      cpu: "75m"
       memory: "128Mi"
     limits:
       cpu: "200m"
@@ -171,7 +167,7 @@ redis:
     parallelSyncs: 1
     resources:
       requests:
-        cpu: "50m"
+        cpu: "30m"
         memory: "64Mi"
       limits:
         cpu: "200m"
@@ -184,7 +180,7 @@ redis:
     saveChanges: '1'
   resources:
     requests:
-      cpu: "300m"
+      cpu: "250m"
       memory: "512Mi"
     limits:
       cpu: "1000m"
