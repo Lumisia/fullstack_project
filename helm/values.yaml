@@ -5,8 +5,8 @@ backend:
   replicaCount: 2
   image:
     repository: lumisia/waffle-app
-    tag: v4
-    pullPolicy: IfNotPresent
+    tag: v5
+    pullPolicy: Always
   service:
     port: 8080
   env:
@@ -87,8 +87,8 @@ frontend:
   replicaCount: 2
   image:
     repository: lumisia/waffle-frontend
-    tag: v4
-    pullPolicy: IfNotPresent
+    tag: v5
+    pullPolicy: Always
   service:
     type: ClusterIP
     port: 80
@@ -108,8 +108,8 @@ websocket:
   replicaCount: 2
   image:
     repository: lumisia/websocket-server
-    tag: v4
-    pullPolicy: IfNotPresent
+    tag: v5
+    pullPolicy: Always
   service:
     port: 1234
   env:
