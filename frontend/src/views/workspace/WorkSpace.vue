@@ -353,7 +353,24 @@ const prepareData = async () => {
     const data = await postApi.getPost(id)
     return data
   } catch (error) {
-    return { idx: Number(id), title: '', contents: '', type: false, status: 'Private', uuid: '', accessRole: 'READ' }
+    const normalizedId = Number(id)
+    const isReadonlyRoute =
+      route.name === 'workspace_readonly' ||
+      String(route.path || '').startsWith('/workspace/readonly/')
+    const isCollaborativeRoute =
+      isReadonlyRoute ||
+      route.name === 'workspace_read' ||
+      String(route.path || '').startsWith('/workspace/read/')
+
+    return {
+      idx: Number.isFinite(normalizedId) ? normalizedId : null,
+      title: '',
+      contents: '',
+      type: isCollaborativeRoute,
+      status: isCollaborativeRoute ? 'Public' : 'Private',
+      uuid: '',
+      accessRole: isReadonlyRoute ? 'READ' : isCollaborativeRoute ? 'WRITE' : 'ADMIN',
+    }
   }
 }
 

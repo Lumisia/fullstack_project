@@ -2,7 +2,7 @@ import http from 'node:http'
 import https from 'node:https'
 import { randomUUID } from 'node:crypto'
 import Redis from 'ioredis'
-import * as Y from 'yjs'
+import * as Y from '@y/y'
 import * as awarenessProtocol from '@y/protocols/awareness'
 import {
   getYDoc,
