@@ -5,7 +5,7 @@ backend:
   replicaCount: 2
   image:
     repository: lumisia/waffle-app
-    tag: v6
+    tag: v7
     pullPolicy: Always
   service:
     port: 8080
@@ -22,7 +22,7 @@ backend:
     APP_FRONTEND_URL: 'https://www.fileinnoutcloud.kro.kr'
     APP_BACKEND_URL: 'https://api.fileinnoutcloud.kro.kr/api'
     APP_SECURE_COOKIE: 'true'
-    REDIS_HOST: 'redis'
+    REDIS_HOST: '{{ .Values.redis.service.name }}.{{ .Release.Namespace }}.svc.cluster.local'
     REDIS_PORT: '{{ .Values.redis.service.port }}'
     REDIS_SENTINEL_MASTER: '{{ if .Values.redis.sentinel.enabled }}{{ .Values.redis.sentinel.masterName }}{{ else }}{{ "" }}{{ end }}'
     REDIS_SENTINEL_NODES: '{{ if .Values.redis.sentinel.enabled }}{{ .Values.redis.sentinel.name }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.redis.sentinel.port }}{{ else }}{{ "" }}{{ end }}'
@@ -87,7 +87,7 @@ frontend:
   replicaCount: 2
   image:
     repository: lumisia/waffle-frontend
-    tag: v6
+    tag: v7
     pullPolicy: Always
   service:
     type: ClusterIP
@@ -108,18 +108,18 @@ websocket:
   replicaCount: 2
   image:
     repository: lumisia/websocket-server
-    tag: v6
+    tag: v7
     pullPolicy: Always
   service:
     port: 1234
   env:
     PORT: '{{ .Values.websocket.service.port }}'
     HOST: '0.0.0.0'
-    REDIS_HOST: 'redis'
+    REDIS_HOST: '{{ .Values.redis.service.name }}.{{ .Release.Namespace }}.svc.cluster.local'
     REDIS_PORT: '{{ .Values.redis.service.port }}'
     REDIS_SENTINEL_MASTER: '{{ if .Values.redis.sentinel.enabled }}{{ .Values.redis.sentinel.masterName }}{{ else }}{{ "" }}{{ end }}'
     REDIS_SENTINEL_NODES: '{{ if .Values.redis.sentinel.enabled }}{{ .Values.redis.sentinel.name }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.redis.sentinel.port }}{{ else }}{{ "" }}{{ end }}'
-    BACKEND_HOST: '{{ include "wafflebear.fullname" . }}-backend'
+    BACKEND_HOST: '{{ include "wafflebear.fullname" . }}-backend.{{ .Release.Namespace }}.svc.cluster.local'
     BACKEND_PORT: '{{ .Values.backend.service.port }}'
     YJS_REDIS_PREFIX: 'wafflebear:yjs'
     YJS_SNAPSHOT_SAVE_DELAY_MS: '150'

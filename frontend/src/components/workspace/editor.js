@@ -39,6 +39,21 @@ export async function initEditor(holderElement, room, initialData, idx, initialT
   const yPermissions = ydoc.getMap('permissions')
   const LOCAL_EDIT_ORIGIN = Symbol('local-edit-origin')
   let hasSeededInitialTitle = false
+  let hasSeededInitialContents = false
+
+  let initialParsedData = { blocks: [] }
+  try {
+    if (typeof initialData === 'string' && initialData.trim() !== '' && initialData !== '""') {
+      initialParsedData = JSON.parse(initialData)
+    } else if (initialData && typeof initialData === 'object' && initialData.blocks) {
+      initialParsedData = initialData
+    }
+  } catch (e) {
+    console.warn('Initial data parsing failed', e)
+  }
+
+  const hasInitialBlocks = Array.isArray(initialParsedData.blocks) && initialParsedData.blocks.length > 0
+  const initialContentsString = hasInitialBlocks ? JSON.stringify(initialParsedData) : ''
 
   const runLocalTransaction = (callback) => {
     ydoc.transact(callback, LOCAL_EDIT_ORIGIN)
@@ -60,13 +75,30 @@ export async function initEditor(holderElement, room, initialData, idx, initialT
     })
   }
 
+  const seedInitialContentsIfNeeded = () => {
+    if (hasSeededInitialContents) {
+      return
+    }
+
+    hasSeededInitialContents = true
+    if (!initialContentsString || yMap.get('contents')) {
+      return
+    }
+
+    runLocalTransaction(() => {
+      yMap.set('contents', initialContentsString)
+    })
+  }
+
   if (provider) {
     provider.on('sync', (isSynced) => {
       if (!isSynced) return
       seedInitialTitleIfNeeded()
+      seedInitialContentsIfNeeded()
     })
   } else {
     seedInitialTitleIfNeeded()
+    seedInitialContentsIfNeeded()
   }
 
   const awareness        = provider ? provider.awareness : null
@@ -208,6 +240,7 @@ export async function initEditor(holderElement, room, initialData, idx, initialT
   let remoteRenderInFlight  = false
   let localSyncTimer        = null
   let currentRenderedContents = ''
+  let pendingLocalSnapshot  = null
   let titleObserver         = null
 
   const isDirtyRef = ref(false)
@@ -255,14 +288,16 @@ export async function initEditor(holderElement, room, initialData, idx, initialT
     return { blocks: [] }
   }
 
-  const syncEditorToYjs = async () => {
+  const syncEditorToYjs = async (serializedSnapshot = null) => {
     if (suppressLocal || isRendering || !editor) {
       return
     }
 
     try {
-      const saved = await editor.save()
-      const newString = JSON.stringify(saved)
+      const newString =
+        typeof serializedSnapshot === 'string'
+          ? serializedSnapshot
+          : JSON.stringify(await editor.save())
       if (yMap.get('contents') === newString) {
         currentRenderedContents = newString
         return
@@ -278,14 +313,20 @@ export async function initEditor(holderElement, room, initialData, idx, initialT
     }
   }
 
-  const scheduleLocalSync = () => {
+  const scheduleLocalSync = (savedSnapshot = null) => {
     if (suppressLocal || isRendering) {
       return
     }
 
+    if (savedSnapshot) {
+      pendingLocalSnapshot = JSON.stringify(savedSnapshot)
+    }
+
     clearTimeout(localSyncTimer)
     localSyncTimer = setTimeout(() => {
-      void syncEditorToYjs()
+      const nextSnapshot = pendingLocalSnapshot
+      pendingLocalSnapshot = null
+      void syncEditorToYjs(nextSnapshot)
     }, 100)
   }
   // ─── 블록 단위 diff 적용 ──────────────────────────────────────────────────
@@ -376,9 +417,9 @@ export async function initEditor(holderElement, room, initialData, idx, initialT
       const initialY = yMap.get('contents')
       if (initialY) {
         await renderFromY(initialY)
-      } else if (parsedData.blocks && parsedData.blocks.length > 0) {
+      } else if (!provider && hasInitialBlocks) {
         runLocalTransaction(() => {
-          yMap.set('contents', JSON.stringify(parsedData))
+          yMap.set('contents', initialContentsString)
         })
       }
 
@@ -386,8 +427,6 @@ export async function initEditor(holderElement, room, initialData, idx, initialT
       refreshImageAssetSnapshot(initialSaved.blocks)
       currentRenderedContents = JSON.stringify(initialSaved)
       await flushPendingRender()
-
-      holderElement.addEventListener('input', scheduleLocalSync, true)
     },
     onChange: async () => {
       if (suppressLocal || isRendering) return
@@ -410,7 +449,7 @@ export async function initEditor(holderElement, room, initialData, idx, initialT
 
         previousImageAssets = currentImageAssets
 
-        scheduleLocalSync()
+        scheduleLocalSync(saved)
       } catch (err) {
         console.error('editor save failed', err)
       }
@@ -507,7 +546,6 @@ export async function initEditor(holderElement, room, initialData, idx, initialT
   function destroy() {
     if (animationFrameId) cancelAnimationFrame(animationFrameId)
     window.removeEventListener('mousemove', handleMouseMove)
-    holderElement.removeEventListener('input', scheduleLocalSync, true)
     clearTimeout(localSyncTimer)
     if (titleObserver) {
       yTitle.unobserve(titleObserver)
