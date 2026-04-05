@@ -103,7 +103,9 @@ const normalizeDocName = (rawValue) => {
 const isRealtimeProxyPath = (pathname) =>
   pathname.startsWith('/api/sse') || pathname.startsWith('/api/ws-stomp')
 
-const rewriteProxyPath = (pathname, search = '') => `${pathname.replace(/^\/api/, '')}${search}`
+// Backend app is mounted under the /api context path, so keep the original path intact
+// when proxying realtime HTTP and websocket upgrade traffic.
+const rewriteProxyPath = (pathname, search = '') => `${pathname}${search}`
 
 const HOP_BY_HOP_HEADERS = new Set([
   'connection',
