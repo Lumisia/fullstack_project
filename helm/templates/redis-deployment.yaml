@@ -1,16 +1,21 @@
+{{- if and .Values.redis.autoscaling.enabled (gt (int .Values.redis.autoscaling.maxReplicas) 1) }}
+{{- fail "Redis autoscaling above 1 replica is unsafe with the current single-writer Deployment. Introduce a clustered Redis topology before enabling maxReplicas > 1." }}
+{{- end }}
 apiVersion: apps/v1
-kind: StatefulSet
+kind: Deployment
 metadata:
   name: {{ .Values.redis.service.name }}
   labels:
     app.kubernetes.io/name: redis
     app.kubernetes.io/part-of: wafflebear
 spec:
-  serviceName: {{ .Values.redis.service.name }}
   replicas: {{ .Values.redis.replicaCount }}
-  podManagementPolicy: OrderedReady
-  updateStrategy:
+  revisionHistoryLimit: 5
+  strategy:
     type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app.kubernetes.io/name: redis
@@ -91,13 +96,11 @@ spec:
                   - redis-cli -p {{ .Values.redis.service.port }} shutdown save || true
           resources:
 {{ toYaml .Values.redis.resources | indent 12 }}
-  volumeClaimTemplates:
-    - metadata:
-        name: redis-data
-      spec:
-        accessModes:
-          - ReadWriteOnce
-        storageClassName: {{ .Values.redis.persistence.storageClassName }}
-        resources:
-          requests:
-            storage: {{ .Values.redis.persistence.size }}
+      volumes:
+        - name: redis-data
+{{- if .Values.redis.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.redis.service.name }}-data
+{{- else }}
+          emptyDir: {}
+{{- end }}

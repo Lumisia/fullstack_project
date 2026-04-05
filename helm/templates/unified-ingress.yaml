@@ -1,16 +1,12 @@
-{{- if and .Values.ingress.enabled .Values.ingress.splitResources }}
+{{- if and .Values.ingress.enabled (not .Values.ingress.splitResources) }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "wafflebear.fullname" . }}-realtime
+  name: {{ include "wafflebear.fullname" . }}
   annotations:
-    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
-    nginx.ingress.kubernetes.io/proxy-buffering: "off"
-    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+{{- with .Values.ingress.annotations }}
+{{ toYaml . | nindent 4 }}
+{{- end }}
 spec:
   ingressClassName: {{ .Values.ingress.className | quote }}
   rules:
@@ -31,6 +27,27 @@ spec:
                 name: {{ include "wafflebear.fullname" . }}-websocket
                 port:
                   number: {{ .Values.websocket.service.port }}
+          - path: /wss
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "wafflebear.fullname" . }}-websocket
+                port:
+                  number: {{ .Values.websocket.service.port }}
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "wafflebear.fullname" . }}-backend
+                port:
+                  number: {{ .Values.backend.service.port }}
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "wafflebear.fullname" . }}-frontend
+                port:
+                  number: {{ .Values.frontend.service.port }}
     - host: {{ .Values.ingress.hosts.backend | quote }}
       http:
         paths:
@@ -48,6 +65,20 @@ spec:
                 name: {{ include "wafflebear.fullname" . }}-websocket
                 port:
                   number: {{ .Values.websocket.service.port }}
+          - path: /wss
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "wafflebear.fullname" . }}-websocket
+                port:
+                  number: {{ .Values.websocket.service.port }}
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "wafflebear.fullname" . }}-backend
+                port:
+                  number: {{ .Values.backend.service.port }}
 {{- if .Values.ingress.tls.enabled }}
   tls:
     - hosts:

@@ -3,8 +3,7 @@ kind: Service
 metadata:
   name: {{ .Values.redis.service.name }}
 spec:
-  clusterIP: None
-  publishNotReadyAddresses: true
+  type: ClusterIP
   selector:
     app.kubernetes.io/name: redis
     app.kubernetes.io/part-of: wafflebear

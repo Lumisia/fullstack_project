@@ -149,7 +149,8 @@ redis:
     storageClassName: longhorn
     size: 10Gi
   autoscaling:
-    # Redis is sensitive to attach/mount churn on Longhorn; keep it fixed by default.
+    # Plain Redis in this chart is single-writer. Keep autoscaling disabled
+    # until a clustered Redis topology is introduced.
     enabled: false
     minReplicas: 1
     maxReplicas: 5
@@ -189,12 +190,14 @@ redis:
 
 ingress:
   enabled: true
+  splitResources: false
   className: "nginx"
   annotations:
     kubernetes.io/ingress.class: "nginx"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-buffering: "off"

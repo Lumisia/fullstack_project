@@ -9,7 +9,7 @@ metadata:
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
-    kind: StatefulSet
+    kind: Deployment
     name: {{ .Values.redis.service.name }}
   minReplicas: {{ .Values.redis.autoscaling.minReplicas }}
   maxReplicas: {{ .Values.redis.autoscaling.maxReplicas }}

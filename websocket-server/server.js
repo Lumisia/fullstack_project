@@ -132,7 +132,9 @@ const snapshotKey = (docName) => `${REDIS_PREFIX}:snapshot:${encodeURIComponent(
 
 const normalizeDocName = (rawValue) => {
   const decoded = decodeURIComponent(String(rawValue || '').trim())
-  const normalized = decoded.replace(/^\/+|\/+$/g, '')
+  const normalized = decoded
+    .replace(/^\/+|\/+$/g, '')
+    .replace(/^wss(?:\/|$)/, '')
   return normalized || 'default'
 }
 

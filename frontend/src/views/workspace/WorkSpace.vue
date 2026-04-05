@@ -532,7 +532,6 @@ const setupEditor = async () => {
 
     editorApi.value = markRaw(newEditorApi)
     editorApi.value?.bindTitleRef?.(title)
-    editorApi.value?.updateTitleFromLocal?.(title.value)
     editorApi.value?.markSaved?.()
   } catch (error) {
     console.error('에디터 초기화 실패:', error)

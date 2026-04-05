@@ -38,19 +38,35 @@ export async function initEditor(holderElement, room, initialData, idx, initialT
   const yTitle       = ydoc.getText('title')
   const yPermissions = ydoc.getMap('permissions')
   const LOCAL_EDIT_ORIGIN = Symbol('local-edit-origin')
+  let hasSeededInitialTitle = false
 
   const runLocalTransaction = (callback) => {
     ydoc.transact(callback, LOCAL_EDIT_ORIGIN)
   }
 
+  const seedInitialTitleIfNeeded = () => {
+    if (hasSeededInitialTitle) {
+      return
+    }
+
+    hasSeededInitialTitle = true
+    const fallbackTitle = String(initialTitle ?? '')
+    if (!fallbackTitle || yTitle.toString() !== '') {
+      return
+    }
+
+    runLocalTransaction(() => {
+      yTitle.insert(0, fallbackTitle)
+    })
+  }
+
   if (provider) {
     provider.on('sync', (isSynced) => {
-      if (isSynced && initialTitle && yTitle.toString() === '') {
-        runLocalTransaction(() => {
-          yTitle.insert(0, initialTitle)
-        })
-      }
+      if (!isSynced) return
+      seedInitialTitleIfNeeded()
     })
+  } else {
+    seedInitialTitleIfNeeded()
   }
 
   const awareness        = provider ? provider.awareness : null
