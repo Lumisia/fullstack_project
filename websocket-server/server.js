@@ -38,6 +38,12 @@ const BACKEND_CLIENT = BACKEND_PROTOCOL === 'https:' ? https : http
 
 const REDIS_ORIGIN = Symbol('redis-origin')
 const SNAPSHOT_ORIGIN = Symbol('snapshot-origin')
+const REDIS_RETRY_DELAY_MS = Number.parseInt(process.env.REDIS_RETRY_DELAY_MS || '1000', 10)
+let redisChannelsSubscribed = false
+
+const delay = (ms) => new Promise((resolve) => {
+  setTimeout(resolve, ms)
+})
 
 const parseSentinelNodes = (rawValue) =>
   String(rawValue || '')
@@ -61,6 +67,8 @@ const buildRedisOptions = () => {
       name: REDIS_SENTINEL_MASTER,
       role: 'master',
       maxRetriesPerRequest: null,
+      retryStrategy: (times) => Math.min(times * 500, 5000),
+      sentinelRetryStrategy: (times) => Math.min(times * 500, 5000),
     }
 
     if (REDIS_PASSWORD) {
@@ -74,6 +82,7 @@ const buildRedisOptions = () => {
     host: REDIS_HOST,
     port: REDIS_PORT,
     maxRetriesPerRequest: null,
+    retryStrategy: (times) => Math.min(times * 500, 5000),
   }
 
   if (REDIS_PASSWORD) {
@@ -87,6 +96,33 @@ const createRedisClient = () => new Redis(buildRedisOptions())
 
 const redisPub = createRedisClient()
 const redisSub = createRedisClient()
+
+const attachRedisEventLogging = (client, label) => {
+  client.on('error', (error) => {
+    console.error(`[REDIS:${label}]`, error)
+  })
+
+  client.on('close', () => {
+    if (label === 'sub') {
+      redisChannelsSubscribed = false
+    }
+  })
+
+  client.on('end', () => {
+    if (label === 'sub') {
+      redisChannelsSubscribed = false
+    }
+  })
+
+  client.on('reconnecting', () => {
+    if (label === 'sub') {
+      redisChannelsSubscribed = false
+    }
+  })
+}
+
+attachRedisEventLogging(redisPub, 'pub')
+attachRedisEventLogging(redisSub, 'sub')
 
 const docStates = new Map()
 
@@ -463,10 +499,22 @@ redisSub.on('pmessageBuffer', (pattern, channel, message) => {
   }
 })
 
-await redisSub.psubscribe(
-  `${REDIS_PREFIX}:update:*`,
-  `${REDIS_PREFIX}:awareness:*`,
-)
+const subscribeToRedisChannels = async () => {
+  while (true) {
+    try {
+      await redisSub.psubscribe(
+        `${REDIS_PREFIX}:update:*`,
+        `${REDIS_PREFIX}:awareness:*`,
+      )
+      redisChannelsSubscribed = true
+      console.log('[REDIS:sub] subscribed to YJS channels')
+      return
+    } catch (error) {
+      console.error('[REDIS:sub] subscribe failed', error)
+      await delay(REDIS_RETRY_DELAY_MS)
+    }
+  }
+}
 
 const handleConnection = async (ws, req) => {
   const docName = normalizeDocName((req.url || '').slice(1).split('?')[0])
@@ -485,8 +533,26 @@ const handleConnection = async (ws, req) => {
   }
 }
 
+const isRedisReady = () =>
+  redisPub.status === 'ready' &&
+  redisSub.status === 'ready' &&
+  redisChannelsSubscribed
+
 const server = http.createServer((req, res) => {
   const requestUrl = new URL(req.url || '/', 'http://localhost')
+
+  if (requestUrl.pathname === '/livez') {
+    res.writeHead(200, { 'Content-Type': 'text/plain' })
+    res.end('ok')
+    return
+  }
+
+  if (requestUrl.pathname === '/readyz') {
+    const statusCode = isRedisReady() ? 200 : 503
+    res.writeHead(statusCode, { 'Content-Type': 'text/plain' })
+    res.end(statusCode === 200 ? 'ready' : 'redis not ready')
+    return
+  }
 
   if (isRealtimeProxyPath(requestUrl.pathname)) {
     proxyHttpRequest(req, res, rewriteProxyPath(requestUrl.pathname, requestUrl.search))
@@ -515,6 +581,8 @@ server.on('upgrade', (request, socket, head) => {
     wss.emit('connection', ws, request)
   })
 })
+
+void subscribeToRedisChannels()
 
 server.listen(PORT, HOST, () => {
   console.log(`WaffleBear realtime gateway listening on ${HOST}:${PORT}`)

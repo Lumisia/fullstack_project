@@ -1,3 +1,4 @@
+{{- if .Values.redis.sentinel.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -108,3 +109,4 @@ data:
     EOF
 
     exec redis-server "$CONFIG_FILE" --sentinel
+{{- end }}

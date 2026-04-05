@@ -24,8 +24,8 @@ backend:
     APP_SECURE_COOKIE: 'true'
     REDIS_HOST: 'redis'
     REDIS_PORT: '{{ .Values.redis.service.port }}'
-    REDIS_SENTINEL_MASTER: 'redis-master'
-    REDIS_SENTINEL_NODES: 'redis-sentinel.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.redis.sentinel.port }}'
+    REDIS_SENTINEL_MASTER: '{{ if .Values.redis.sentinel.enabled }}{{ .Values.redis.sentinel.masterName }}{{ else }}{{ "" }}{{ end }}'
+    REDIS_SENTINEL_NODES: '{{ if .Values.redis.sentinel.enabled }}{{ .Values.redis.sentinel.name }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.redis.sentinel.port }}{{ else }}{{ "" }}{{ end }}'
     SPRING_DATASOURCE_HIKARI_INITIALIZATION_FAIL_TIMEOUT: '-1'
     GOOGLE_CLIENT_ID: ''
     GOOGLE_CLIENT_SECRET: ''
@@ -117,8 +117,8 @@ websocket:
     HOST: '0.0.0.0'
     REDIS_HOST: 'redis'
     REDIS_PORT: '{{ .Values.redis.service.port }}'
-    REDIS_SENTINEL_MASTER: 'redis-master'
-    REDIS_SENTINEL_NODES: 'redis-sentinel.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.redis.sentinel.port }}'
+    REDIS_SENTINEL_MASTER: '{{ if .Values.redis.sentinel.enabled }}{{ .Values.redis.sentinel.masterName }}{{ else }}{{ "" }}{{ end }}'
+    REDIS_SENTINEL_NODES: '{{ if .Values.redis.sentinel.enabled }}{{ .Values.redis.sentinel.name }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.redis.sentinel.port }}{{ else }}{{ "" }}{{ end }}'
     BACKEND_HOST: '{{ include "wafflebear.fullname" . }}-backend'
     BACKEND_PORT: '{{ .Values.backend.service.port }}'
     YJS_REDIS_PREFIX: 'wafflebear:yjs'
@@ -156,6 +156,7 @@ redis:
     targetCPUUtilizationPercentage: 70
     targetMemoryUtilizationPercentage: 75
   sentinel:
+    enabled: false
     name: redis-sentinel
     masterName: redis-master
     masterHost: redis-0.redis

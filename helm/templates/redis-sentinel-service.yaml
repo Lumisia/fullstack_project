@@ -1,3 +1,4 @@
+{{- if .Values.redis.sentinel.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -12,3 +13,4 @@ spec:
       protocol: TCP
       port: {{ .Values.redis.sentinel.port }}
       targetPort: {{ .Values.redis.sentinel.port }}
+{{- end }}

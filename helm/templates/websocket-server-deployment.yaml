@@ -42,19 +42,22 @@ spec:
             - containerPort: {{ .Values.websocket.service.port }}
               name: ws
           startupProbe:
-            tcpSocket:
+            httpGet:
+              path: /livez
               port: {{ .Values.websocket.service.port }}
             initialDelaySeconds: 5
             periodSeconds: 5
             failureThreshold: 30
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /readyz
               port: {{ .Values.websocket.service.port }}
             periodSeconds: 10
             timeoutSeconds: 2
             failureThreshold: 3
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /livez
               port: {{ .Values.websocket.service.port }}
             initialDelaySeconds: 20
             periodSeconds: 20

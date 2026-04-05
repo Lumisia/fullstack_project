@@ -29,32 +29,28 @@ spec:
         - name: redis
           image: "{{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}"
           imagePullPolicy: {{ .Values.redis.image.pullPolicy }}
-          command:
-            - /bin/sh
-            - /etc/redis/scripts/redis-entrypoint.sh
-          env:
-            - name: REDIS_PORT
-              value: "{{ .Values.redis.service.port }}"
-            - name: REDIS_DATA_DIR
-              value: /data
-            - name: REDIS_HEADLESS_SERVICE
-              value: "{{ .Values.redis.service.name }}"
-            - name: REDIS_MAXMEMORY
-              value: "{{ .Values.redis.config.maxmemory }}"
-            - name: REDIS_MAXMEMORY_POLICY
-              value: "{{ .Values.redis.config.maxmemoryPolicy }}"
-            - name: REDIS_SENTINEL_MASTER
-              value: "{{ .Values.redis.sentinel.masterName }}"
-            - name: REDIS_SENTINEL_NODES
-              value: "{{ printf "%s.%s.svc.cluster.local:%d" .Values.redis.sentinel.name .Release.Namespace .Values.redis.sentinel.port }}"
-            - name: REDIS_FALLBACK_MASTER
-              value: "{{ printf "%s-0.%s.%s.svc.cluster.local" .Values.redis.service.name .Values.redis.service.name .Release.Namespace }}"
+          args:
+            - --port
+            - "{{ .Values.redis.service.port }}"
+            - --bind
+            - "0.0.0.0"
+            - --protected-mode
+            - "no"
+            - --appendonly
+            - "{{ .Values.redis.config.appendonly }}"
+            - --save
+            - "{{ .Values.redis.config.saveSeconds }}"
+            - "{{ .Values.redis.config.saveChanges }}"
+            - --dir
+            - /data
+            - --maxmemory
+            - "{{ .Values.redis.config.maxmemory }}"
+            - --maxmemory-policy
+            - "{{ .Values.redis.config.maxmemoryPolicy }}"
           ports:
             - containerPort: {{ .Values.redis.service.port }}
               name: redis
           volumeMounts:
-            - name: redis-scripts
-              mountPath: /etc/redis/scripts
             - name: redis-data
               mountPath: /data
           startupProbe:
@@ -62,7 +58,7 @@ spec:
               command:
                 - /bin/sh
                 - -c
-                - redis-cli -p ${REDIS_PORT:-6379} ping
+                - redis-cli -p {{ .Values.redis.service.port }} ping
             initialDelaySeconds: 10
             periodSeconds: 10
             failureThreshold: 60
@@ -71,7 +67,7 @@ spec:
               command:
                 - /bin/sh
                 - -c
-                - redis-cli -p ${REDIS_PORT:-6379} ping
+                - redis-cli -p {{ .Values.redis.service.port }} ping
             initialDelaySeconds: 5
             periodSeconds: 5
             timeoutSeconds: 2
@@ -81,7 +77,7 @@ spec:
               command:
                 - /bin/sh
                 - -c
-                - redis-cli -p ${REDIS_PORT:-6379} ping
+                - redis-cli -p {{ .Values.redis.service.port }} ping
             initialDelaySeconds: 15
             periodSeconds: 10
             timeoutSeconds: 2
@@ -92,14 +88,9 @@ spec:
                 command:
                   - /bin/sh
                   - -c
-                  - redis-cli -p ${REDIS_PORT:-6379} shutdown save || true
+                  - redis-cli -p {{ .Values.redis.service.port }} shutdown save || true
           resources:
 {{ toYaml .Values.redis.resources | indent 12 }}
-      volumes:
-        - name: redis-scripts
-          configMap:
-            name: {{ include "wafflebear.fullname" . }}-redis-scripts
-            defaultMode: 0755
   volumeClaimTemplates:
     - metadata:
         name: redis-data
