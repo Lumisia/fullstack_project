@@ -1,31 +1,24 @@
-{{- if and .Values.redis.autoscaling.enabled (gt (int .Values.redis.autoscaling.maxReplicas) 1) }}
-{{- fail "Redis autoscaling above 1 replica is unsafe with the current single-writer Deployment. Introduce a clustered Redis topology before enabling maxReplicas > 1." }}
-{{- end }}
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: {{ .Values.redis.service.name }}
   labels:
     app.kubernetes.io/name: redis
     app.kubernetes.io/part-of: wafflebear
 spec:
+  serviceName: {{ .Values.redis.headlessService.name }}
   replicas: {{ .Values.redis.replicaCount }}
   revisionHistoryLimit: 5
-  strategy:
-{{- if .Values.redis.persistence.enabled }}
-    type: Recreate
-{{- else }}
+  updateStrategy:
     type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
-{{- end }}
   selector:
     matchLabels:
       app.kubernetes.io/name: redis
       app.kubernetes.io/part-of: wafflebear
   template:
     metadata:
+      annotations:
+        checksum/redis-scripts: {{ include (print $.Template.BasePath "/redis-scripts-configmap.yaml") . | sha256sum }}
       labels:
         app.kubernetes.io/name: redis
         app.kubernetes.io/part-of: wafflebear
@@ -38,24 +31,24 @@ spec:
         - name: redis
           image: "{{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}"
           imagePullPolicy: {{ .Values.redis.image.pullPolicy }}
-          args:
-            - --port
-            - "{{ .Values.redis.service.port }}"
-            - --bind
-            - "0.0.0.0"
-            - --protected-mode
-            - "no"
-            - --appendonly
-            - "{{ .Values.redis.config.appendonly }}"
-            - --save
-            - "{{ .Values.redis.config.saveSeconds }}"
-            - "{{ .Values.redis.config.saveChanges }}"
-            - --dir
-            - /data
-            - --maxmemory
-            - "{{ .Values.redis.config.maxmemory }}"
-            - --maxmemory-policy
-            - "{{ .Values.redis.config.maxmemoryPolicy }}"
+          command:
+            - /bin/sh
+            - /etc/redis/scripts/redis-entrypoint.sh
+          env:
+            - name: REDIS_PORT
+              value: "{{ .Values.redis.service.port }}"
+            - name: REDIS_HEADLESS_SERVICE
+              value: "{{ .Values.redis.headlessService.name }}"
+            - name: REDIS_FALLBACK_MASTER
+              value: "{{ printf "%s-0.%s.%s.svc.cluster.local" .Values.redis.service.name .Values.redis.headlessService.name .Release.Namespace }}"
+            - name: REDIS_SENTINEL_MASTER
+              value: "{{ if .Values.redis.sentinel.enabled }}{{ .Values.redis.sentinel.masterName }}{{ else }}{{ "" }}{{ end }}"
+            - name: REDIS_SENTINEL_NODES
+              value: "{{ if .Values.redis.sentinel.enabled }}{{ .Values.redis.sentinel.name }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.redis.sentinel.port }}{{ else }}{{ "" }}{{ end }}"
+            - name: REDIS_MAXMEMORY
+              value: "{{ .Values.redis.config.maxmemory }}"
+            - name: REDIS_MAXMEMORY_POLICY
+              value: "{{ .Values.redis.config.maxmemoryPolicy }}"
           ports:
             - containerPort: {{ .Values.redis.service.port }}
               name: redis
@@ -101,10 +94,23 @@ spec:
           resources:
 {{ toYaml .Values.redis.resources | indent 12 }}
       volumes:
+        - name: redis-scripts
+          configMap:
+            name: {{ include "wafflebear.fullname" . }}-redis-scripts
+            defaultMode: 0755
+{{- if not .Values.redis.persistence.enabled }}
         - name: redis-data
-{{- if .Values.redis.persistence.enabled }}
-          persistentVolumeClaim:
-            claimName: {{ .Values.redis.service.name }}-data
-{{- else }}
           emptyDir: {}
+{{- end }}
+{{- if .Values.redis.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: redis-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: {{ .Values.redis.persistence.storageClassName }}
+        resources:
+          requests:
+            storage: {{ .Values.redis.persistence.size }}
 {{- end }}

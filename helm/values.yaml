@@ -136,7 +136,7 @@ websocket:
       scaleDownDelaySeconds: 600
 
 redis:
-  replicaCount: 1
+  replicaCount: 3
   image:
     repository: redis
     tag: 7.4-alpine
@@ -144,23 +144,22 @@ redis:
   service:
     name: redis
     port: 6379
+  headlessService:
+    name: redis-headless
   persistence:
     enabled: true
     storageClassName: longhorn
     size: 10Gi
   autoscaling:
-    # Plain Redis in this chart is single-writer. Keep autoscaling disabled
-    # until a clustered Redis topology is introduced.
     enabled: false
     minReplicas: 1
     maxReplicas: 5
     targetCPUUtilizationPercentage: 70
     targetMemoryUtilizationPercentage: 75
   sentinel:
-    enabled: false
+    enabled: true
     name: redis-sentinel
     masterName: redis-master
-    masterHost: redis-0.redis
     replicas: 3
     port: 26379
     quorum: 2
