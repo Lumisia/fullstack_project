@@ -1,4 +1,3 @@
-{{- if .Values.redis.sentinel.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -15,7 +14,7 @@ data:
     MASTER_NAME="${REDIS_SENTINEL_MASTER:-}"
     SENTINEL_NODES="${REDIS_SENTINEL_NODES:-}"
     FALLBACK_MASTER="${REDIS_FALLBACK_MASTER:-}"
-    HEADLESS_SERVICE="${REDIS_HEADLESS_SERVICE:-redis}"
+    HEADLESS_SERVICE="${REDIS_HEADLESS_SERVICE:-{{ .Values.redis.headlessService.name }}}"
     SELF_HOST="${HOSTNAME}.${HEADLESS_SERVICE}"
     MASTER_HOST=""
     MASTER_PORT="$PORT"
@@ -109,4 +108,3 @@ data:
     EOF
 
     exec redis-server "$CONFIG_FILE" --sentinel
-{{- end }}

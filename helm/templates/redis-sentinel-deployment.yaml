@@ -20,6 +20,8 @@ spec:
       app.kubernetes.io/part-of: wafflebear
   template:
     metadata:
+      annotations:
+        checksum/redis-scripts: {{ include (print $.Template.BasePath "/redis-scripts-configmap.yaml") . | sha256sum }}
       labels:
         app.kubernetes.io/name: redis-sentinel
         app.kubernetes.io/part-of: wafflebear
@@ -37,7 +39,7 @@ spec:
             - name: REDIS_SENTINEL_MASTER
               value: "{{ .Values.redis.sentinel.masterName }}"
             - name: REDIS_SENTINEL_MASTER_HOST
-              value: "{{ printf "%s-0.%s.%s.svc.cluster.local" .Values.redis.service.name .Values.redis.service.name .Release.Namespace }}"
+              value: "{{ printf "%s-0.%s.%s.svc.cluster.local" .Values.redis.service.name .Values.redis.headlessService.name .Release.Namespace }}"
             - name: REDIS_PORT
               value: "{{ .Values.redis.service.port }}"
             - name: REDIS_SENTINEL_PORT
