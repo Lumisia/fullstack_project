@@ -30,7 +30,31 @@ spec:
         app.kubernetes.io/name: backend
         app.kubernetes.io/part-of: wafflebear
     spec:
+{{ include "wafflebear.workerScheduling" (dict "app.kubernetes.io/name" "backend" "app.kubernetes.io/part-of" "wafflebear") | nindent 6 }}
       terminationGracePeriodSeconds: 90
+      initContainers:
+        - name: wait-for-mariadb
+          image: busybox:1.36
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -ec
+            - |
+              until nc -z mariadb 3306; do
+                echo "waiting for mariadb"
+                sleep 3
+              done
+        - name: wait-for-redis
+          image: busybox:1.36
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -ec
+            - |
+              until nc -z {{ .Values.redis.service.name }} {{ .Values.redis.service.port }}; do
+                echo "waiting for redis"
+                sleep 3
+              done
       containers:
         - name: backend
           image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"

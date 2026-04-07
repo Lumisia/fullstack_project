@@ -34,6 +34,13 @@ spec:
                 name: {{ include "wafflebear.fullname" . }}-websocket
                 port:
                   number: {{ .Values.websocket.service.port }}
+          - path: /edit
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "wafflebear.fullname" . }}-websocket
+                port:
+                  number: {{ .Values.websocket.service.port }}
           - path: /api
             pathType: Prefix
             backend:

@@ -30,6 +30,7 @@ spec:
         app.kubernetes.io/name: websocket
         app.kubernetes.io/part-of: wafflebear
     spec:
+{{ include "wafflebear.workerScheduling" (dict "app.kubernetes.io/name" "websocket" "app.kubernetes.io/part-of" "wafflebear") | nindent 6 }}
       terminationGracePeriodSeconds: 120
       containers:
         - name: websocket-server

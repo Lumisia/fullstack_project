@@ -19,6 +19,13 @@ spec:
     - host: {{ .Values.ingress.hosts.frontend | quote }}
       http:
         paths:
+          - path: /edit/?(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ include "wafflebear.fullname" . }}-websocket
+                port:
+                  number: {{ .Values.websocket.service.port }}
           - path: /wss/?(.*)
             pathType: ImplementationSpecific
             backend:
