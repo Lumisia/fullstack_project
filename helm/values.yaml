@@ -4,7 +4,7 @@ fullnameOverride: ""
 backend:
   replicaCount: 2
   image:
-    repository: lumisia/waffle-app
+    repository: lumisia/backend
     tag: latest
     pullPolicy: Always
   service:
@@ -94,7 +94,7 @@ mariadb:
 frontend:
   replicaCount: 2
   image:
-    repository: lumisia/waffle-frontend
+    repository: lumisia/frontend
     tag: latest
     pullPolicy: Always
   service:

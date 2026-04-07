@@ -7,7 +7,7 @@ plugins {
 
 docker {
 	println(tasks.bootJar.outputs.files)
-	name "lumisia/" + rootProject.name + '-' + project.name + ':' + version
+	name "lumisia/backend:" + version
 	dockerfile file('./backend.dockerfile')
 	files tasks.bootJar.outputs.files
 	buildArgs(['JAR_FILE': tasks.bootJar.archiveFileName.get()])
