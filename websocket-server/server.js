@@ -16,6 +16,7 @@ const HOST = process.env.HOST || '0.0.0.0'
 const PORT = Number.parseInt(process.env.PORT || '1234', 10)
 const REDIS_HOST = process.env.REDIS_HOST || 'redis'
 const REDIS_PORT = Number.parseInt(process.env.REDIS_PORT || '6379', 10)
+const REDIS_NAME = String(process.env.REDIS_NAME || '').trim()
 const REDIS_SENTINEL_MASTER = String(process.env.REDIS_SENTINEL_MASTER || '').trim()
 const REDIS_SENTINEL_NODES = String(process.env.REDIS_SENTINEL_NODES || '').trim()
 const REDIS_PASSWORD = String(process.env.REDIS_PASSWORD || '').trim()
@@ -155,10 +156,36 @@ attachRedisEventLogging(redisPub, 'pub')
 attachRedisEventLogging(redisSub, 'sub')
 
 const docStates = new Map()
+const REDIS_SENTINELS = parseSentinelNodes(REDIS_SENTINEL_NODES)
 
 const updateChannel = (docName) => `${REDIS_PREFIX}:update:${encodeURIComponent(docName)}`
 const awarenessChannel = (docName) => `${REDIS_PREFIX}:awareness:${encodeURIComponent(docName)}`
 const snapshotKey = (docName) => `${REDIS_PREFIX}:snapshot:${encodeURIComponent(docName)}`
+
+const isRedisReady = () =>
+  redisPub.status === 'ready' &&
+  redisSub.status === 'ready' &&
+  redisChannelsSubscribed
+
+const redisDisplayName = () => {
+  if (REDIS_NAME) {
+    return REDIS_NAME
+  }
+
+  if (REDIS_SENTINEL_MASTER) {
+    return REDIS_SENTINEL_MASTER
+  }
+
+  return REDIS_HOST
+}
+
+const redisEndpointLabel = () => {
+  if (REDIS_SENTINELS.length > 0 && REDIS_SENTINEL_MASTER) {
+    return REDIS_SENTINELS.map(({ host, port }) => `${host}:${port}`).join(', ')
+  }
+
+  return `${REDIS_HOST}:${REDIS_PORT}`
+}
 
 const normalizeDocName = (rawValue) => {
   const decoded = decodeURIComponent(String(rawValue || '').trim())
@@ -449,6 +476,7 @@ setContentInitializor(async (doc) => {
       attachListeners(state)
 
       const snapshot = await redisPub.getBuffer(snapshotKey(doc.name))
+
       if (snapshot && snapshot.length > 0) {
         Y.applyUpdate(doc, new Uint8Array(snapshot), SNAPSHOT_ORIGIN)
       }
@@ -565,24 +593,37 @@ const handleConnection = async (ws, req) => {
   }
 }
 
-const isRedisReady = () =>
-  redisPub.status === 'ready' &&
-  redisSub.status === 'ready' &&
-  redisChannelsSubscribed
-
 const server = http.createServer((req, res) => {
   const requestUrl = new URL(req.url || '/', 'http://localhost')
 
-  if (requestUrl.pathname === '/livez') {
+  if (requestUrl.pathname === '/livez' || requestUrl.pathname.endsWith('/livez')) {
     res.writeHead(200, { 'Content-Type': 'text/plain' })
     res.end('ok')
     return
   }
 
-  if (requestUrl.pathname === '/readyz') {
+  if (requestUrl.pathname === '/readyz' || requestUrl.pathname.endsWith('/readyz')) {
     const statusCode = isRedisReady() ? 200 : 503
     res.writeHead(statusCode, { 'Content-Type': 'text/plain' })
-    res.end(statusCode === 200 ? 'ready' : 'redis not ready')
+    res.end(isRedisReady() ? 'ready' : 'redis not ready')
+    return
+  }
+
+  if (requestUrl.pathname === '/statusz' || requestUrl.pathname.endsWith('/statusz')) {
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' })
+    res.end(
+      JSON.stringify({
+        websocketName: NODE_ID,
+        websocketHost: HOST,
+        websocketPort: PORT,
+        redisName: redisDisplayName(),
+        redisEndpoint: redisEndpointLabel(),
+        redisMode: REDIS_SENTINELS.length > 0 && REDIS_SENTINEL_MASTER ? 'sentinel' : 'standalone',
+        redisAvailable: isRedisReady(),
+        redisPubStatus: redisPub.status,
+        redisSubStatus: redisSub.status,
+      }),
+    )
     return
   }
 

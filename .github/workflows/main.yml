@@ -2,43 +2,36 @@ name: Lumisia CD (Deploy to Server)
 
 on:
   push:
-    branches: [ "main" ] # 메인 브랜치에 푸시될 때 실행
+    branches: ["main"]
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    env:
+      COMPOSE_IMAGE_TAG: v${{ github.run_number }}
     steps:
-      # 1. 코드 체크아웃
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. 도커 허브 로그인
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # 3. 각 이미지 빌드 및 푸시 (-f 옵션 사용)
-      # 빌드 단계에서 태그에 ${{ github.run_number }} 사용
-      - name: Build and Push Backend
+      - name: Build Compose Images
         run: |
-          docker build -t lumisia/waffle-app:v${{ github.run_number }} -f backend.dockerfile .
-          docker push lumisia/waffle-app:v${{ github.run_number }}
-          docker tag lumisia/waffle-app:v${{ github.run_number }} lumisia/waffle-app:latest
-          docker push lumisia/waffle-app:latest
+          docker compose -f docker-compose.yml build backend-app websocket-server frontend
 
-      # 빌드 단계에서 태그에 ${{ github.run_number }} 사용
-      - name: Build and Push Websocket
+      - name: Push Compose Images
         run: |
-          docker build -t lumisia/websocket:v${{ github.run_number }} -f websocket.dockerfile .
-          docker push lumisia/websocket:v${{ github.run_number }}
-          docker tag lumisia/websocket:v${{ github.run_number }} lumisia/websocket:latest
-          docker push lumisia/websocket:latest
+          docker compose -f docker-compose.yml push backend-app websocket-server frontend
 
-      - name: Build and Push Frontend
+      - name: Tag and Push Latest Images
         run: |
-          docker build -t lumisia/frontend:v${{ github.run_number }} -f frontend.dockerfile .
-          docker push lumisia/frontend:v${{ github.run_number }}
-          docker tag lumisia/frontend:v${{ github.run_number }} lumisia/frontend:latest
+          docker tag lumisia/backend:${{ env.COMPOSE_IMAGE_TAG }} lumisia/backend:latest
+          docker tag lumisia/websocket-server:${{ env.COMPOSE_IMAGE_TAG }} lumisia/websocket-server:latest
+          docker tag lumisia/frontend:${{ env.COMPOSE_IMAGE_TAG }} lumisia/frontend:latest
+          docker push lumisia/backend:latest
+          docker push lumisia/websocket-server:latest
           docker push lumisia/frontend:latest

@@ -54,6 +54,8 @@ spec:
             - containerPort: {{ .Values.redis.service.port }}
               name: redis
           volumeMounts:
+            - name: redis-scripts
+              mountPath: /etc/redis/scripts
             - name: redis-data
               mountPath: /data
           startupProbe:

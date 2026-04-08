@@ -52,7 +52,7 @@ services:
     build:
       context: .
       dockerfile: backend.dockerfile
-    image: lumisia/backend:v7
+    image: lumisia/backend:${COMPOSE_IMAGE_TAG:-latest}
     ports:
       - "8080:8080"
     environment:
@@ -125,7 +125,7 @@ services:
     build:
       context: .
       dockerfile: websocket.dockerfile
-    image: lumisia/websocket-server:v7
+    image: lumisia/websocket-server:${COMPOSE_IMAGE_TAG:-latest}
     environment:
       - PORT=1234
       - HOST=0.0.0.0
@@ -154,7 +154,7 @@ services:
     build:
       context: .
       dockerfile: frontend.dockerfile
-    image: lumisia/frontend:v7  # 이 줄을 추가해서 이름을 강제하세요.
+    image: lumisia/frontend:${COMPOSE_IMAGE_TAG:-latest}
     container_name: waffle-frontend
     ports:
       - "80:80"

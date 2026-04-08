@@ -20,7 +20,7 @@ import { WebsocketProvider } from 'y-websocket'
 
 import { ref } from 'vue'
 import postApi from '@/api/postApi'
-import { getYjsWebsocketUrl } from '@/utils/yjsUrl'
+import { getYjsStatusUrl, getYjsWebsocketUrl } from '@/utils/yjsUrl'
 import loadpost from './loadpost'
 
 export async function initEditor(holderElement, room, initialData, idx, initialTitle, isPrivate, options = {}) {
@@ -29,9 +29,58 @@ export async function initEditor(holderElement, room, initialData, idx, initialT
   const ydoc = new Y.Doc()
   let provider = null
   let currentIdx = idx ?? null
+  let realtimeStatusTimer = null
 
   if (!isPrivate) {
     provider = new WebsocketProvider(getYjsWebsocketUrl(), room, ydoc)
+  }
+
+  const yjsStatusUrl = !isPrivate ? getYjsStatusUrl() : null
+
+  const stopRealtimeStatusLogging = () => {
+    if (realtimeStatusTimer) {
+      clearInterval(realtimeStatusTimer)
+      realtimeStatusTimer = null
+    }
+  }
+
+  const logRealtimeStatus = async () => {
+    if (!yjsStatusUrl) {
+      return
+    }
+
+    try {
+      const response = await fetch(yjsStatusUrl, {
+        cache: 'no-store',
+        headers: {
+          Accept: 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error(`status request failed: ${response.status}`)
+      }
+
+      const status = await response.json()
+      console.info(`[RealtimeStatus]
+웹소켓 이름 = ${status.websocketName ?? 'unknown'}
+Redis 이름 = ${status.redisName ?? 'unknown'}
+Redis 주소 = ${status.redisEndpoint ?? 'unknown'}
+Redis 연결 상태 = ${status.redisAvailable === true ? '연결됨' : '연결 안 됨'}`)
+    } catch (error) {
+      console.warn('[RealtimeStatus] status fetch failed', error)
+    }
+  }
+
+  const startRealtimeStatusLogging = () => {
+    if (!yjsStatusUrl || realtimeStatusTimer) {
+      return
+    }
+
+    void logRealtimeStatus()
+    realtimeStatusTimer = window.setInterval(() => {
+      void logRealtimeStatus()
+    }, 5000)
   }
 
   const yMap         = ydoc.getMap('workspace_data')
@@ -91,6 +140,17 @@ export async function initEditor(holderElement, room, initialData, idx, initialT
   }
 
   if (provider) {
+    provider.on('status', ({ status }) => {
+      if (status === 'connected') {
+        startRealtimeStatusLogging()
+        return
+      }
+
+      if (status === 'disconnected') {
+        stopRealtimeStatusLogging()
+      }
+    })
+
     provider.on('sync', (isSynced) => {
       if (!isSynced) return
       seedInitialTitleIfNeeded()
@@ -547,6 +607,7 @@ export async function initEditor(holderElement, room, initialData, idx, initialT
     if (animationFrameId) cancelAnimationFrame(animationFrameId)
     window.removeEventListener('mousemove', handleMouseMove)
     clearTimeout(localSyncTimer)
+    stopRealtimeStatusLogging()
     if (titleObserver) {
       yTitle.unobserve(titleObserver)
       titleObserver = null
