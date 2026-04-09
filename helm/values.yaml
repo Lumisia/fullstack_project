@@ -12,6 +12,7 @@ backend:
   env:
     # Public defaults only. Sensitive values are overridden from values.private.yaml.
     TZ: 'Asia/Seoul'
+    APP_VERSION: '{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}'
     PORTONE_SECRET: ''
     JWT_KEY: ''
     JWT_EXPIRE: '86400000'
@@ -143,6 +144,12 @@ websocket:
     blueGreen:
       autoPromotionEnabled: true
       scaleDownDelaySeconds: 120
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 75
 
 redis:
   replicaCount: 1
@@ -212,10 +219,6 @@ ingress:
     # Tip: cert-manager 관련 어노테이션은 이제 넣지 않아도 됩니다.
 
     # CORS 및 헤더 설정
-    nginx.ingress.kubernetes.io/configuration-snippet: |
-      add_header 'Access-Control-Expose-Headers' 'Authorization' always;
-      if ($request_uri ~* "^/api$") { return 301 $scheme://$http_host/api/; }
-      if ($request_uri ~* "^/wss$") { return 301 $scheme://$http_host/wss/; }
   
   hosts:
     frontend: "www.fileinnoutcloud.kro.kr"

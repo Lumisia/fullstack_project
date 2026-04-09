@@ -1,7 +1,7 @@
 package com.example.WaffleBear.chat;
 
 import com.example.WaffleBear.chat.model.dto.ChatRoomsDto;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -12,12 +12,20 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class ChatListCacheService {
 
     private static final Duration TTL = Duration.ofSeconds(10);
 
-    private final RedisTemplate<String, Object> redisTemplate;
+    private final RedisTemplate<String, Object> writeRedisTemplate;
+    private final RedisTemplate<String, Object> readRedisTemplate;
+
+    public ChatListCacheService(
+            @Qualifier("redisTemplate") RedisTemplate<String, Object> writeRedisTemplate,
+            @Qualifier("readRedisTemplate") RedisTemplate<String, Object> readRedisTemplate
+    ) {
+        this.writeRedisTemplate = writeRedisTemplate;
+        this.readRedisTemplate = readRedisTemplate;
+    }
 
     private String cacheKey(Long userIdx, int page, int size) {
         return "chat:list:user:" + userIdx + ":page:" + page + ":size:" + size;
@@ -28,7 +36,7 @@ public class ChatListCacheService {
     }
 
     public ChatRoomsDto.PageRes get(Long userIdx, int page, int size) {
-        Object value = redisTemplate.opsForValue().get(cacheKey(userIdx, page, size));
+        Object value = readRedisTemplate.opsForValue().get(cacheKey(userIdx, page, size));
         if (value instanceof ChatRoomsDto.PageRes pageRes) {
             return pageRes;
         }
@@ -37,23 +45,23 @@ public class ChatListCacheService {
 
     public void put(Long userIdx, int page, int size, ChatRoomsDto.PageRes value) {
         String key = cacheKey(userIdx, page, size);
-        redisTemplate.opsForValue().set(key, value, TTL);
-        redisTemplate.opsForSet().add(indexKey(userIdx), key);
-        redisTemplate.expire(indexKey(userIdx), TTL.multipliedBy(2));
+        writeRedisTemplate.opsForValue().set(key, value, TTL);
+        writeRedisTemplate.opsForSet().add(indexKey(userIdx), key);
+        writeRedisTemplate.expire(indexKey(userIdx), TTL.multipliedBy(2));
     }
 
     public void evictUser(Long userIdx) {
         String indexKey = indexKey(userIdx);
-        Set<Object> rawKeys = redisTemplate.opsForSet().members(indexKey);
+        Set<Object> rawKeys = writeRedisTemplate.opsForSet().members(indexKey);
 
         if (rawKeys != null && !rawKeys.isEmpty()) {
             Set<String> keys = rawKeys.stream()
                     .map(String::valueOf)
                     .collect(Collectors.toSet());
-            redisTemplate.delete(keys);
+            writeRedisTemplate.delete(keys);
         }
 
-        redisTemplate.delete(indexKey);
+        writeRedisTemplate.delete(indexKey);
     }
 
 

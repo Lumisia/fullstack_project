@@ -65,6 +65,11 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ include "wafflebear.fullname" . }}-backend-env
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
           lifecycle:
             preStop:
               exec:

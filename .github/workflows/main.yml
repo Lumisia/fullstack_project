@@ -35,3 +35,37 @@ jobs:
           docker push lumisia/backend:latest
           docker push lumisia/websocket-server:latest
           docker push lumisia/frontend:latest
+
+      - name: Setup Helm
+        if: ${{ secrets.KUBE_CONFIG != '' && secrets.HELM_VALUES_PRIVATE != '' }}
+        uses: azure/setup-helm@v4
+
+      - name: Setup kubectl
+        if: ${{ secrets.KUBE_CONFIG != '' && secrets.HELM_VALUES_PRIVATE != '' }}
+        uses: azure/setup-kubectl@v4
+
+      - name: Deploy Helm Release
+        if: ${{ secrets.KUBE_CONFIG != '' && secrets.HELM_VALUES_PRIVATE != '' }}
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+          HELM_VALUES_PRIVATE: ${{ secrets.HELM_VALUES_PRIVATE }}
+          HELM_RELEASE_NAME: ${{ vars.HELM_RELEASE_NAME }}
+          K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
+        run: |
+          RELEASE_NAME="${HELM_RELEASE_NAME:-wafflebear}"
+          NAMESPACE="${K8S_NAMESPACE:-default}"
+
+          mkdir -p "$HOME/.kube"
+          printf '%s' "$KUBE_CONFIG" > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+          printf '%s' "$HELM_VALUES_PRIVATE" > helm/values.private.ci.yaml
+
+          helm upgrade --install "$RELEASE_NAME" ./helm \
+            --namespace "$NAMESPACE" \
+            --create-namespace \
+            -f helm/values.yaml \
+            -f helm/values.private.ci.yaml \
+            --set-string backend.image.tag="${COMPOSE_IMAGE_TAG}" \
+            --set-string frontend.image.tag="${COMPOSE_IMAGE_TAG}" \
+            --set-string websocket.image.tag="${COMPOSE_IMAGE_TAG}"

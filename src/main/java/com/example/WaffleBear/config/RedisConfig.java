@@ -5,7 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.lettuce.core.ReadFrom;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -13,6 +15,7 @@ import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.RedisPassword;
 import org.springframework.data.redis.connection.RedisSentinelConfiguration;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
+import org.springframework.data.redis.connection.lettuce.LettuceClientConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -32,6 +35,59 @@ public class RedisConfig {
             @Value("${REDIS_PORT:6379}") int redisPort,
             @Value("${REDIS_PASSWORD:}") String redisPassword
     ) {
+        return createConnectionFactory(
+                sentinelMaster,
+                sentinelNodes,
+                redisHost,
+                redisPort,
+                redisPassword,
+                false
+        );
+    }
+
+    @Bean(name = "readRedisConnectionFactory")
+    public RedisConnectionFactory readRedisConnectionFactory(
+            @Value("${REDIS_SENTINEL_MASTER:}") String sentinelMaster,
+            @Value("${REDIS_SENTINEL_NODES:}") String sentinelNodes,
+            @Value("${REDIS_HOST:127.0.0.1}") String redisHost,
+            @Value("${REDIS_PORT:6379}") int redisPort,
+            @Value("${REDIS_PASSWORD:}") String redisPassword
+    ) {
+        return createConnectionFactory(
+                sentinelMaster,
+                sentinelNodes,
+                redisHost,
+                redisPort,
+                redisPassword,
+                true
+        );
+    }
+
+    private int parsePort(String rawPort, int fallback) {
+        try {
+            return Integer.parseInt(rawPort);
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
+    }
+
+    private RedisConnectionFactory createConnectionFactory(
+            String sentinelMaster,
+            String sentinelNodes,
+            String redisHost,
+            int redisPort,
+            String redisPassword,
+            boolean replicaPreferred
+    ) {
+        LettuceClientConfiguration.LettuceClientConfigurationBuilder clientConfigurationBuilder =
+                LettuceClientConfiguration.builder();
+
+        if (replicaPreferred) {
+            clientConfigurationBuilder.readFrom(ReadFrom.REPLICA_PREFERRED);
+        }
+
+        LettuceClientConfiguration clientConfiguration = clientConfigurationBuilder.build();
+
         if (StringUtils.hasText(sentinelMaster) && StringUtils.hasText(sentinelNodes)) {
             RedisSentinelConfiguration sentinelConfiguration = new RedisSentinelConfiguration();
             sentinelConfiguration.master(sentinelMaster.trim());
@@ -51,7 +107,7 @@ public class RedisConfig {
                 sentinelConfiguration.setPassword(RedisPassword.of(redisPassword.trim()));
             }
 
-            return new LettuceConnectionFactory(sentinelConfiguration);
+            return new LettuceConnectionFactory(sentinelConfiguration, clientConfiguration);
         }
 
         RedisStandaloneConfiguration standaloneConfiguration =
@@ -59,19 +115,23 @@ public class RedisConfig {
         if (StringUtils.hasText(redisPassword)) {
             standaloneConfiguration.setPassword(RedisPassword.of(redisPassword.trim()));
         }
-        return new LettuceConnectionFactory(standaloneConfiguration);
-    }
-
-    private int parsePort(String rawPort, int fallback) {
-        try {
-            return Integer.parseInt(rawPort);
-        } catch (NumberFormatException ignored) {
-            return fallback;
-        }
+        return new LettuceConnectionFactory(standaloneConfiguration, clientConfiguration);
     }
 
     @Bean
+    @Primary
     public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory connectionFactory) {
+        return createRedisTemplate(connectionFactory);
+    }
+
+    @Bean(name = "readRedisTemplate")
+    public RedisTemplate<String, Object> readRedisTemplate(
+            @Qualifier("readRedisConnectionFactory") RedisConnectionFactory connectionFactory
+    ) {
+        return createRedisTemplate(connectionFactory);
+    }
+
+    private RedisTemplate<String, Object> createRedisTemplate(RedisConnectionFactory connectionFactory) {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
 
@@ -96,7 +156,15 @@ public class RedisConfig {
     }
 
     @Bean
+    @Primary
     public StringRedisTemplate stringRedisTemplate(RedisConnectionFactory connectionFactory) {
+        return new StringRedisTemplate(connectionFactory);
+    }
+
+    @Bean(name = "readStringRedisTemplate")
+    public StringRedisTemplate readStringRedisTemplate(
+            @Qualifier("readRedisConnectionFactory") RedisConnectionFactory connectionFactory
+    ) {
         return new StringRedisTemplate(connectionFactory);
     }
 }
